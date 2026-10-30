@@ -22,6 +22,7 @@ courts (name), bookings (court, start time, guest name, phone)
 - A court can be booked only once per slot.
 - A booking lasts 90 minutes and starts on the hour or half hour.
 - Slots from 8:00 to 23:00, Milan time. Nobody can book in the past.
+- Two bookings on the same court can't overlap. A booking at 18:00 blocks starts from 17:00 to 19:00.
 
 ## Out of scope
 Payments (day 19), login (day 17), tournaments, coaching, an app store app.
