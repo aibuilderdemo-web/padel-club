@@ -3,7 +3,17 @@ import { logOut } from "@/app/auth/actions";
 import { createAuthClient } from "@/lib/supabase/auth";
 
 export async function Nav() {
-  const { data } = await (await createAuthClient()).auth.getUser();
+  const supabase = await createAuthClient();
+  const { data } = await supabase.auth.getUser();
+  let isStaff = false;
+  if (data.user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    isStaff = profile?.role === "staff" || profile?.role === "admin";
+  }
   return (
     <nav className="flex items-center gap-4 border-b px-6 py-2 text-sm">
       <Link href="/" className="font-medium">Padel Club Navigli</Link>
@@ -11,6 +21,7 @@ export async function Nav() {
       {data.user ? (
         <>
           <Link href="/my-bookings" className="underline">My bookings</Link>
+          {isStaff && <Link href="/staff" className="underline">Staff</Link>}
           <form action={logOut}>
             <button type="submit" className="underline">Log out</button>
           </form>
