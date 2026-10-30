@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/server";
-import { dayWindow, isValidDate, slotsForDate, todayInMilan } from "@/lib/slots";
+import { dayWindow, isValidDate, overlaps, slotsForDate, todayInMilan } from "@/lib/slots";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
@@ -41,9 +41,10 @@ async function Courts({ searchParams }: { searchParams: SearchParams }) {
     .lt("starts_at", to);
   if (bookingsError) errors.push(`Bookings: ${bookingsError.message}`);
 
-  const taken = new Set(
-    (bookings ?? []).map((b) => `${b.court_id}|${new Date(b.starts_at).getTime()}`),
-  );
+  const booked = (bookings ?? []).map((b) => ({
+    courtId: b.court_id as number,
+    startsAt: new Date(b.starts_at),
+  }));
   const slots = slotsForDate(date);
 
   return (
@@ -73,7 +74,7 @@ async function Courts({ searchParams }: { searchParams: SearchParams }) {
 
       {(courts ?? []).map((court) => {
         const free = slots.filter(
-          (s) => !taken.has(`${court.id}|${s.startsAt.getTime()}`),
+          (s) => !booked.some((b) => b.courtId === court.id && overlaps(s.startsAt, b.startsAt)),
         );
         return (
           <section key={court.id} className="mt-6">

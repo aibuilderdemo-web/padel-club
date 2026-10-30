@@ -34,6 +34,14 @@ export async function bookSlot(_prev: BookState, formData: FormData): Promise<Bo
     .select("public_id")
     .single();
 
-  if (error) return { error: `Could not book: ${error.message}` };
+  if (error) {
+    // 23P01 = exclusion_violation: the no-overlap rule in the database refused it.
+    if (error.code === "23P01") {
+      return {
+        error: `Sorry, that court is already booked at that time. Please go back and pick another slot. (Database: ${error.message})`,
+      };
+    }
+    return { error: `Could not book: ${error.message}` };
+  }
   redirect(`/confirmation/${data.public_id}`);
 }

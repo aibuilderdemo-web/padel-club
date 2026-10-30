@@ -59,12 +59,21 @@ export function slotsForDate(date: string, now = new Date()): Slot[] {
   return slots;
 }
 
-// Search window for bookings that could fall on this Milan day.
+export const BOOKING_MINUTES = 90;
+
+// Search window for bookings that could touch this Milan day: a booking that
+// starts up to 90 minutes before or after the day still blocks its edge slots.
 export function dayWindow(date: string): { from: string; to: string } {
+  const pad = (BOOKING_MINUTES - 1) * 60_000;
   return {
-    from: milanToInstant(date, 0).toISOString(),
-    to: milanToInstant(date, 24 * 60).toISOString(),
+    from: new Date(milanToInstant(date, 0).getTime() - pad).toISOString(),
+    to: new Date(milanToInstant(date, 24 * 60).getTime() + pad).toISOString(),
   };
+}
+
+// True if a 90-minute booking starting at `slot` would overlap one starting at `booked`.
+export function overlaps(slot: Date, booked: Date): boolean {
+  return Math.abs(slot.getTime() - booked.getTime()) < BOOKING_MINUTES * 60_000;
 }
 
 // A real, still-bookable slot for this date and "HH:MM" label, or null.
