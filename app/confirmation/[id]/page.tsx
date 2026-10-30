@@ -17,7 +17,7 @@ async function Booking({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { data, error } = await createAdminClient()
     .from("bookings")
-    .select("starts_at, guest_name, courts(name)")
+    .select("starts_at, guest_name, cancel_code, cancelled_at, courts(name)")
     .eq("public_id", id)
     .maybeSingle();
 
@@ -35,13 +35,21 @@ async function Booking({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">Booking confirmed</h1>
+      <h1 className="text-2xl font-semibold">
+        {data.cancelled_at ? "Booking cancelled" : "Booking confirmed"}
+      </h1>
       <dl className="mt-4 space-y-1">
         <div><dt className="inline font-medium">Court: </dt><dd className="inline">{court?.name}</dd></div>
         <div><dt className="inline font-medium">Date: </dt><dd className="inline">{when.date}</dd></div>
         <div><dt className="inline font-medium">Time: </dt><dd className="inline">{when.time} (Milan time, 90 minutes)</dd></div>
         <div><dt className="inline font-medium">Name: </dt><dd className="inline">{data.guest_name}</dd></div>
       </dl>
+      {!data.cancelled_at && (
+        <p className="mt-4">
+          Cancel code: <strong className="font-mono">{data.cancel_code}</strong>. Keep it to{" "}
+          <Link href="/cancel" className="underline">cancel this booking</Link>.
+        </p>
+      )}
       <p className="mt-4"><Link href="/" className="underline">Back to free slots</Link></p>
     </>
   );

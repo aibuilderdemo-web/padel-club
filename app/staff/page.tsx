@@ -22,6 +22,7 @@ async function Bookings() {
   const { data, error } = await createAdminClient()
     .from("bookings")
     .select("starts_at, guest_name, phone, courts(name)")
+    .is("cancelled_at", null)
     .gte("starts_at", from)
     .lt("starts_at", to)
     .order("starts_at")

@@ -37,6 +37,7 @@ async function Courts({ searchParams }: { searchParams: SearchParams }) {
   const { data: bookings, error: bookingsError } = await createAdminClient()
     .from("bookings")
     .select("court_id, starts_at")
+    .is("cancelled_at", null)
     .gte("starts_at", from)
     .lt("starts_at", to);
   if (bookingsError) errors.push(`Bookings: ${bookingsError.message}`);
