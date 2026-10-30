@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/server";
@@ -82,8 +83,13 @@ async function Courts({ searchParams }: { searchParams: SearchParams }) {
             ) : (
               <ul className="mt-2 flex flex-wrap gap-2">
                 {free.map((s) => (
-                  <li key={s.label} className="rounded border px-2 py-1 text-sm">
-                    {s.label}
+                  <li key={s.label}>
+                    <Link
+                      href={`/book?court=${court.id}&date=${date}&time=${s.label}`}
+                      className="block rounded border px-2 py-1 text-sm hover:bg-zinc-100"
+                    >
+                      {s.label}
+                    </Link>
                   </li>
                 ))}
               </ul>

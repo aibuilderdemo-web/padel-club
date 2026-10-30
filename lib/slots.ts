@@ -66,3 +66,18 @@ export function dayWindow(date: string): { from: string; to: string } {
     to: milanToInstant(date, 24 * 60).toISOString(),
   };
 }
+
+// A real, still-bookable slot for this date and "HH:MM" label, or null.
+export function parseSlot(date: string, time: string, now = new Date()): Date | null {
+  if (!isValidDate(date)) return null;
+  return slotsForDate(date, now).find((s) => s.label === time)?.startsAt ?? null;
+}
+
+export function formatMilan(d: Date): { date: string; time: string } {
+  const f = (o: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat("en-GB", { timeZone: TZ, ...o }).format(d);
+  return {
+    date: f({ weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+    time: f({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }),
+  };
+}
