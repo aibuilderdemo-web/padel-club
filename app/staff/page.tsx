@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { formatMilan, milanDayBounds, todayInMilan } from "@/lib/slots";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,6 +17,8 @@ export default function StaffPage() {
 }
 
 async function Bookings() {
+  // Render at request time: "today" must not be frozen at build time.
+  await connection();
   const today = todayInMilan();
   const { from, to } = milanDayBounds(today);
 
