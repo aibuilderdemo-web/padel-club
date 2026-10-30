@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createAuthClient } from "@/lib/supabase/auth";
 import { createPublicClient } from "@/lib/supabase/server";
 import { dayWindow, isValidDate, overlaps, slotsForDate, todayInMilan } from "@/lib/slots";
@@ -40,16 +39,14 @@ async function Courts({ searchParams }: { searchParams: SearchParams }) {
   if (courtsError) errors.push(`Courts: ${courtsError.message}`);
 
   const { from, to } = dayWindow(date);
-  const { data: bookings, error: bookingsError } = await createAdminClient()
-    .from("bookings")
-    .select("court_id, starts_at")
-    .is("cancelled_at", null)
-    .gte("starts_at", from)
-    .lt("starts_at", to);
+  const { data: bookings, error: bookingsError } = await createPublicClient().rpc("taken_slots", {
+    from_ts: from,
+    to_ts: to,
+  });
   if (bookingsError) errors.push(`Bookings: ${bookingsError.message}`);
 
-  const booked = (bookings ?? []).map((b) => ({
-    courtId: b.court_id as number,
+  const booked = ((bookings ?? []) as { court_id: number; starts_at: string }[]).map((b) => ({
+    courtId: b.court_id,
     startsAt: new Date(b.starts_at),
   }));
   const slots = slotsForDate(date);
