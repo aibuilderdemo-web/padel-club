@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { parseSlot } from "@/lib/slots";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createAuthClient } from "@/lib/supabase/auth";
 
 export type BookState = { error: string | null };
 
@@ -23,6 +24,9 @@ export async function bookSlot(_prev: BookState, formData: FormData): Promise<Bo
     return { error: "That slot is no longer available to book." };
   }
 
+  // Verified with Supabase Auth (not just the cookie). Logged in -> the booking is linked to the user.
+  const { data: auth } = await (await createAuthClient()).auth.getUser();
+
   const { data, error } = await createAdminClient()
     .from("bookings")
     .insert({
@@ -30,6 +34,7 @@ export async function bookSlot(_prev: BookState, formData: FormData): Promise<Bo
       starts_at: startsAt.toISOString(),
       guest_name: name,
       phone,
+      user_id: auth.user?.id ?? null,
     })
     .select("public_id")
     .single();

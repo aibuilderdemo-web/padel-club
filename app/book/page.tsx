@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { parseSlot } from "@/lib/slots";
+import { createAuthClient } from "@/lib/supabase/auth";
 import { createPublicClient } from "@/lib/supabase/server";
 import { BookingForm } from "./booking-form";
 
@@ -58,12 +59,22 @@ async function Details({ searchParams }: { searchParams: SearchParams }) {
     );
   }
 
+  // Logged in: prefill from the profile (read through RLS as the user).
+  const supabase = await createAuthClient();
+  const { data: auth } = await supabase.auth.getUser();
+  const { data: profile } = auth.user
+    ? await supabase.from("profiles").select("full_name, phone").eq("id", auth.user.id).maybeSingle()
+    : { data: null };
+
   return (
     <div className="mt-4">
       <p>
         {court.name}, {date}, {time} (Milan time, 90 minutes)
       </p>
-      <BookingForm courtId={String(court.id)} date={date} time={time} />
+      <BookingForm courtId={String(court.id)} date={date} time={time}
+        defaultName={profile?.full_name}
+        defaultPhone={profile?.phone}
+      />
       <p className="mt-4">{back}</p>
     </div>
   );

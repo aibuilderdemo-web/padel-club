@@ -7,10 +7,14 @@ export function BookingForm({
   courtId,
   date,
   time,
+  defaultName = "",
+  defaultPhone = "",
 }: {
   courtId: string;
   date: string;
   time: string;
+  defaultName?: string;
+  defaultPhone?: string;
 }) {
   const [state, action, pending] = useActionState<BookState, FormData>(bookSlot, {
     error: null,
@@ -30,12 +34,13 @@ export function BookingForm({
 
       <label className="block">
         Name
-        <input name="name" required className="mt-1 block w-full rounded border px-2 py-1" />
+        <input name="name" required defaultValue={defaultName} className="mt-1 block w-full rounded border px-2 py-1" />
       </label>
       <label className="block">
         Phone
         <input
           name="phone"
+          defaultValue={defaultPhone}
           type="tel"
           required
           placeholder="+39 333 1234567"

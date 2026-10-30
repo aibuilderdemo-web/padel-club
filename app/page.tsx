@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createAuthClient } from "@/lib/supabase/auth";
 import { createPublicClient } from "@/lib/supabase/server";
 import { dayWindow, isValidDate, overlaps, slotsForDate, todayInMilan } from "@/lib/slots";
 
@@ -23,6 +24,11 @@ async function Courts({ searchParams }: { searchParams: SearchParams }) {
   const today = todayInMilan();
   const dateOk = requested === undefined || isValidDate(requested);
   const date = requested && dateOk ? requested : today;
+
+  // Guests can book 2 days ahead, members 7 (the database enforces it; this only limits the picker).
+  const { data: auth } = await (await createAuthClient()).auth.getUser();
+  const maxDate = new Date(`${today}T00:00:00Z`);
+  maxDate.setUTCDate(maxDate.getUTCDate() + (auth.user ? 7 : 2));
 
   const errors: string[] = [];
   if (!dateOk) errors.push(`"${requested}" is not a valid date. Showing today.`);
@@ -58,6 +64,7 @@ async function Courts({ searchParams }: { searchParams: SearchParams }) {
           type="date"
           defaultValue={date}
           min={today}
+          max={maxDate.toISOString().slice(0, 10)}
           className="rounded border px-2 py-1"
         />
         <button type="submit" className="rounded border px-3 py-1">
