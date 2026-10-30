@@ -71,6 +71,14 @@ export function dayWindow(date: string): { from: string; to: string } {
   };
 }
 
+// The real instants where a Milan calendar day starts and ends (end is exclusive).
+export function milanDayBounds(date: string): { from: string; to: string } {
+  return {
+    from: milanToInstant(date, 0).toISOString(),
+    to: milanToInstant(date, 24 * 60).toISOString(),
+  };
+}
+
 // True if a 90-minute booking starting at `slot` would overlap one starting at `booked`.
 export function overlaps(slot: Date, booked: Date): boolean {
   return Math.abs(slot.getTime() - booked.getTime()) < BOOKING_MINUTES * 60_000;
