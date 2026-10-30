@@ -22,6 +22,7 @@ export async function Nav() {
         <>
           <Link href="/my-bookings" className="underline">My bookings</Link>
           <Link href="/profile" className="underline">Profile</Link>
+          <Link href="/membership" className="underline">Become a member</Link>
           {isStaff && <Link href="/staff" className="underline">Staff</Link>}
           <form action={logOut}>
             <button type="submit" className="underline">Log out</button>

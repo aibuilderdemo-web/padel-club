@@ -25,7 +25,7 @@ courts (name), bookings (court, start time, guest name, phone)
 - Two bookings on the same court can't overlap. A booking at 18:00 blocks starts from 17:00 to 19:00.
 
 ## Out of scope
-Payments (day 19), login (day 17), tournaments, coaching, an app store app.
+Payments beyond Stripe Checkout (membership is not activated by payment yet; needs a webhook), login (day 17), tournaments, coaching, an app store app.
 
 ## Acceptance checks
 - I open tomorrow. I see 4 courts and their free slots.
