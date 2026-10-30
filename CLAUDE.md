@@ -8,5 +8,7 @@ Spec: SPEC.md. Plan: PLAN.md. Build one task at a time.
 - Never put a secret key in a NEXT_PUBLIC_ variable or in client code.
 - Rules that protect data go in the database (constraints, RLS),
   not only in the page.
+- Every page and server action checks the user's role on the server.
+  Never rely on hiding links.
 - Show errors from Supabase on the page, never hide them.
 - After each task, tell me exactly how to check it in the browser.

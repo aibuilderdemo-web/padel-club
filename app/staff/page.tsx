@@ -1,10 +1,11 @@
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { formatMilan, milanDayBounds, todayInMilan } from "@/lib/slots";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAuthClient } from "@/lib/supabase/auth";
 
-// Temporary: no login yet (day 17), so anyone with this URL sees guest phones.
-// Not linked from any guest screen.
+// Staff and admin only: everyone else goes to the home page. The query below
+// runs as the logged-in user, so the "bookings: staff read all" RLS policy applies too.
 export default function StaffPage() {
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -19,10 +20,21 @@ export default function StaffPage() {
 async function Bookings() {
   // Render at request time: "today" must not be frozen at build time.
   await connection();
+
+  const supabase = await createAuthClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect("/");
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", auth.user.id)
+    .maybeSingle();
+  if (profile?.role !== "staff" && profile?.role !== "admin") redirect("/");
+
   const today = todayInMilan();
   const { from, to } = milanDayBounds(today);
 
-  const { data, error } = await createAdminClient()
+  const { data, error } = await supabase
     .from("bookings")
     .select("starts_at, guest_name, phone, courts(name)")
     .is("cancelled_at", null)
