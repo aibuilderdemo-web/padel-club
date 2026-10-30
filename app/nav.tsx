@@ -21,6 +21,7 @@ export async function Nav() {
       {data.user ? (
         <>
           <Link href="/my-bookings" className="underline">My bookings</Link>
+          <Link href="/profile" className="underline">Profile</Link>
           {isStaff && <Link href="/staff" className="underline">Staff</Link>}
           <form action={logOut}>
             <button type="submit" className="underline">Log out</button>
