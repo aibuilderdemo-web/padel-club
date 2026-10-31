@@ -2,8 +2,6 @@ import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export const runtime = "nodejs";
-
 export async function POST(req: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) return new Response("STRIPE_WEBHOOK_SECRET is not set", { status: 500 });
