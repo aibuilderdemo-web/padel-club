@@ -20,7 +20,7 @@ async function Message() {
   if (!auth.user) redirect("/login");
   return (
     <p className="mt-4">
-      Your payment is being processed. Your membership will show up once it is confirmed.
+      Your membership will be active in a moment.
     </p>
   );
 }

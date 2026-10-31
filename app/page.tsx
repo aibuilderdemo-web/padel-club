@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { createAuthClient } from "@/lib/supabase/auth";
+import { isActiveMember } from "@/lib/membership";
 import { createPublicClient } from "@/lib/supabase/server";
 import { dayWindow, isValidDate, overlaps, slotsForDate, todayInMilan } from "@/lib/slots";
 
@@ -24,12 +25,24 @@ async function Courts({ searchParams }: { searchParams: SearchParams }) {
   const dateOk = requested === undefined || isValidDate(requested);
   const date = requested && dateOk ? requested : today;
 
-  // Guests can book 2 days ahead, members 7 (the database enforces it; this only limits the picker).
-  const { data: auth } = await (await createAuthClient()).auth.getUser();
-  const maxDate = new Date(`${today}T00:00:00Z`);
-  maxDate.setUTCDate(maxDate.getUTCDate() + (auth.user ? 7 : 2));
-
+  // Guests and non-members can book 2 days ahead, active members 7
+  // (the database enforces it; this only limits the picker).
   const errors: string[] = [];
+  const supabase = await createAuthClient();
+  const { data: auth } = await supabase.auth.getUser();
+  let member = false;
+  if (auth.user) {
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("membership_status")
+      .eq("id", auth.user.id)
+      .single();
+    if (profileError) errors.push(`Profile: ${profileError.message}`);
+    member = isActiveMember(profile?.membership_status);
+  }
+  const maxDate = new Date(`${today}T00:00:00Z`);
+  maxDate.setUTCDate(maxDate.getUTCDate() + (member ? 7 : 2));
+
   if (!dateOk) errors.push(`"${requested}" is not a valid date. Showing today.`);
 
   const { data: courts, error: courtsError } = await createPublicClient()

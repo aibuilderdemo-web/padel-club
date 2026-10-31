@@ -4,7 +4,7 @@
 | --- | --- | --- | --- | --- |
 | See free slots | yes | yes | yes | yes |
 | Book up to 2 days ahead | yes | yes | yes | yes |
-| Book up to 7 days ahead | no | yes | yes | yes |
+| Book up to 7 days ahead | no | only with an active paid membership | yes | yes |
 | See own bookings | no (code only) | yes | yes | yes |
 | Cancel own booking | with code | yes | yes | yes |
 | See all of today's bookings, with phone numbers | no | no | yes | yes |
