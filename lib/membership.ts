@@ -1,3 +1,7 @@
+export function firstNameOf(fullName: string | null | undefined) {
+  return fullName?.trim().split(/\s+/)[0] || "member";
+}
+
 // Stripe subscription statuses that count as an active membership.
 // Keep in sync with bookings_horizon() in supabase/migrations/0008_membership.sql,
 // which also gives staff and admin the 7-day window.

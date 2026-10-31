@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
-import { isActiveMember } from "@/lib/membership";
+import { firstNameOf, isActiveMember } from "@/lib/membership";
+import { notifyNewMember } from "@/lib/n8n";
 import { getStripe } from "@/lib/stripe";
 import { sendWelcomeEmail } from "@/lib/welcome-email";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -62,7 +63,10 @@ async function handle(event: Stripe.Event, stripe: Stripe, db: Db) {
         stripe_subscription_id: subscriptionId,
         ...(status ? { membership_status: status } : {}),
       });
-      if (isActiveMember(status)) await welcome(stripe, session, profile.full_name);
+      if (isActiveMember(status)) {
+        await welcome(stripe, session, profile.full_name);
+        await tellN8n(session, profile.full_name);
+      }
       return;
     }
     case "customer.subscription.updated":
@@ -110,5 +114,16 @@ async function welcome(stripe: Stripe, session: Stripe.Checkout.Session, fullNam
     });
   } catch (e) {
     console.error(`Welcome email for session ${session.id} failed:`, e instanceof Error ? e.message : e);
+  }
+}
+
+// Runs after the welcome email, even if that failed. Logged and ignored on failure or after 5 seconds.
+async function tellN8n(session: Stripe.Checkout.Session, fullName: string | null) {
+  try {
+    const email = session.customer_details?.email ?? session.customer_email;
+    if (!email) throw new Error(`Session ${session.id} has no email`);
+    await notifyNewMember({ firstName: firstNameOf(fullName), email });
+  } catch (e) {
+    console.error(`n8n notification for session ${session.id} failed:`, e instanceof Error ? e.message : e);
   }
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import { firstNameOf } from "@/lib/membership";
 
 type Welcome = {
   to: string;
@@ -18,7 +19,7 @@ export async function sendWelcomeEmail(w: Welcome) {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("RESEND_API_KEY is not set");
 
-  const first = w.fullName?.trim().split(/\s+/)[0] || "member";
+  const first = firstNameOf(w.fullName);
   const amount =
     w.amountTotal != null && w.currency
       ? new Intl.NumberFormat("en-IE", { style: "currency", currency: w.currency.toUpperCase() }).format(
