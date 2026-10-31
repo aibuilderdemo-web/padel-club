@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { createAuthClient } from "@/lib/supabase/auth";
 import { isActiveMember } from "@/lib/membership";
 import { CheckoutButton } from "./checkout-button";
+import { ManageButton } from "./manage-button";
 
 export default function MembershipPage() {
   return (
@@ -21,7 +22,7 @@ async function Content() {
   if (!auth.user) redirect("/login");
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("membership_status")
+    .select("membership_status, stripe_customer_id")
     .eq("id", auth.user.id)
     .single();
   if (error) {
@@ -32,13 +33,19 @@ async function Content() {
     );
   }
   if (isActiveMember(profile.membership_status)) {
-    return <p className="mt-4">Your membership is active. You can book up to 7 days ahead.</p>;
+    return (
+      <>
+        <p className="mt-4">Your membership is active. You can book up to 7 days ahead.</p>
+        <ManageButton />
+      </>
+    );
   }
   return (
     <>
       {profile.membership_status && (
         <p className="mt-4 text-zinc-600">Membership status: {profile.membership_status}</p>
       )}
+      {profile.stripe_customer_id && <ManageButton />}
       <CheckoutButton />
     </>
   );

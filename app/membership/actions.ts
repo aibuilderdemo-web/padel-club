@@ -35,3 +35,33 @@ export async function startCheckout(): Promise<CheckoutState> {
   if (!url) return { error: "Stripe did not return a checkout URL." };
   redirect(url);
 }
+
+export async function manageMembership(): Promise<CheckoutState> {
+  const supabase = await createAuthClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect("/login");
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!site) return { error: "NEXT_PUBLIC_SITE_URL is not set." };
+
+  // Only the user's own saved customer id is used; it is never taken from the browser.
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("stripe_customer_id")
+    .eq("id", auth.user.id)
+    .single();
+  if (error) return { error: `Profile: ${error.message}` };
+  if (!profile.stripe_customer_id) return { error: "You have no membership to manage." };
+
+  let url: string;
+  try {
+    const session = await getStripe().billingPortal.sessions.create({
+      customer: profile.stripe_customer_id,
+      return_url: `${site}/membership`,
+    });
+    url = session.url;
+  } catch (e) {
+    return { error: `Stripe: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  redirect(url);
+}
