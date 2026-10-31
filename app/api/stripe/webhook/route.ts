@@ -1,5 +1,7 @@
 import type Stripe from "stripe";
+import { isActiveMember } from "@/lib/membership";
 import { getStripe } from "@/lib/stripe";
+import { sendWelcomeEmail } from "@/lib/welcome-email";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: Request) {
@@ -55,11 +57,12 @@ async function handle(event: Stripe.Event, stripe: Stripe, db: Db) {
       if (subscriptionId) {
         status = (await stripe.subscriptions.retrieve(subscriptionId)).status;
       }
-      await update(db, { id: userId }, {
+      const profile = await update(db, { id: userId }, {
         stripe_customer_id: id(session.customer),
         stripe_subscription_id: subscriptionId,
         ...(status ? { membership_status: status } : {}),
       });
+      if (isActiveMember(status)) await welcome(stripe, session, profile.full_name);
       return;
     }
     case "customer.subscription.updated":
@@ -81,7 +84,31 @@ async function handle(event: Stripe.Event, stripe: Stripe, db: Db) {
 }
 
 async function update(db: Db, match: Record<string, string>, values: Record<string, string | null>) {
-  const { data, error } = await db.from("profiles").update(values).match(match).select("id");
+  const { data, error } = await db.from("profiles").update(values).match(match).select("id, full_name");
   if (error) throw new Error(`profiles: ${error.message}`);
   if (!data?.length) throw new Error(`No profile matches ${JSON.stringify(match)}`);
+  return data[0];
+}
+
+// A failed email is logged and never fails the webhook (the membership is already saved).
+async function welcome(stripe: Stripe, session: Stripe.Checkout.Session, fullName: string | null) {
+  try {
+    const to = session.customer_details?.email ?? session.customer_email;
+    if (!to) throw new Error(`Session ${session.id} has no email`);
+    const site = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!site) throw new Error("NEXT_PUBLIC_SITE_URL is not set");
+    const invoiceId = id(session.invoice);
+    const invoice = invoiceId ? await stripe.invoices.retrieve(invoiceId) : null;
+    await sendWelcomeEmail({
+      to,
+      fullName,
+      amountTotal: session.amount_total,
+      currency: session.currency,
+      invoiceUrl: invoice?.hosted_invoice_url ?? null,
+      paidAt: new Date(session.created * 1000),
+      manageUrl: `${site}/membership`,
+    });
+  } catch (e) {
+    console.error(`Welcome email for session ${session.id} failed:`, e instanceof Error ? e.message : e);
+  }
 }
