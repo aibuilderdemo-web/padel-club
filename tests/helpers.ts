@@ -31,6 +31,20 @@ export async function submitBooking(page: Page, name: string, phone: string) {
   await page.getByRole('button', { name: 'Book' }).click();
 }
 
+// Server keys are not available in CI: tests that need them skip when they are missing.
+export function missingEnv(...names: string[]): string | undefined {
+  const missing = names.filter((n) => !process.env[n]);
+  return missing.length ? `needs ${missing.join(', ')}` : undefined;
+}
+
+export function accounts() {
+  const { MEMBER_EMAIL, MEMBER_PASSWORD, STAFF_EMAIL, STAFF_PASSWORD } = process.env;
+  return {
+    member: { email: MEMBER_EMAIL ?? '', password: MEMBER_PASSWORD ?? '' },
+    staff: { email: STAFF_EMAIL ?? '', password: STAFF_PASSWORD ?? '' },
+  };
+}
+
 // Cancel a guest booking with its code, so test runs do not use up the slots.
 export async function cancelWithCode(page: Page, code: string) {
   await page.goto('/cancel');

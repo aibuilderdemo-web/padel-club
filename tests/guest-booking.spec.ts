@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { LAST_GUEST_DAY, cancelWithCode, submitBooking } from './helpers';
+import { LAST_GUEST_DAY, cancelWithCode, missingEnv, submitBooking } from './helpers';
+
+test.skip(!!missingEnv('SUPABASE_SECRET_KEY'), 'booking needs SUPABASE_SECRET_KEY');
 
 test('a guest books a free slot on the last bookable day', async ({ page }) => {
   const date = LAST_GUEST_DAY();
