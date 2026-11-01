@@ -21,7 +21,8 @@ export async function Nav() {
       {data.user ? (
         <>
           <Link href="/ask" className="underline">Ask the club</Link>
-          <Link href="/my-bookings" className="underline">My bookings</Link>
+          <Link href="/feedback" className="underline">Feedback</Link>
+          <Link href="/my-bookings"className="underline">My bookings</Link>
           <Link href="/profile" className="underline">Profile</Link>
           <Link href="/membership" className="underline">Become a member</Link>
           {isStaff && <Link href="/staff" className="underline">Staff</Link>}

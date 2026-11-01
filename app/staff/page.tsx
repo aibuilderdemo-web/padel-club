@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { formatMilan, milanDayBounds, todayInMilan } from "@/lib/slots";
 import { createAuthClient } from "@/lib/supabase/auth";
+import { FeedbackSummary } from "./feedback-summary";
 
 // Staff and admin only: everyone else goes to the home page. The query below
 // runs as the logged-in user, so the "bookings: staff read all" RLS policy applies too.
@@ -81,6 +82,7 @@ async function Bookings() {
           </tbody>
         </table>
       )}
+      <FeedbackSummary />
     </>
   );
 }
