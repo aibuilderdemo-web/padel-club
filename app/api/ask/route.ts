@@ -4,6 +4,25 @@ import { createAuthClient } from "@/lib/supabase/auth";
 import { createPublicClient } from "@/lib/supabase/server";
 
 const MODEL = "claude-haiku-5-5";
+const FALLBACK = "I can't answer that right now. Please ask at reception.";
+const PROMISES = ["free", "refund guaranteed", "exception"];
+const PHONE_OR_EMAIL = /\+?\d[\d ]{8,}\d|\S+@\S+\.\S+/;
+
+function checkAnswer(answer: string): string[] {
+  const problems: string[] = [];
+  if (!/\(rule \d+\)/i.test(answer)) problems.push("no (rule N) citation");
+  const lower = answer.toLowerCase();
+  for (const word of PROMISES) {
+    if (lower.includes(word)) problems.push(`promise word: ${word}`);
+  }
+  if (PHONE_OR_EMAIL.test(answer)) problems.push("phone number or email");
+  return problems;
+}
+
+function fallback(reason: string) {
+  console.error(`[ask] fallback: ${reason}`);
+  return Response.json({ answer: FALLBACK }, { status: 200 });
+}
 
 export async function POST(request: Request) {
   // Browser: session cookies. Scripts (run_eval.js): "Authorization: Bearer <access token>".
@@ -25,29 +44,38 @@ export async function POST(request: Request) {
   const rules = await readFile(path.join(root, "club-rules.md"), "utf8");
   const system = template.replace("{club-rules.md}", () => rules);
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 500,
-      system,
-      messages: [{ role: "user", content: question }],
-    }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    throw new Error(`Anthropic API ${res.status}: ${await res.text()}`);
+  let data;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY!,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 500,
+        system,
+        messages: [{ role: "user", content: question }],
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      return fallback(`Anthropic API ${res.status}: ${await res.text()}`);
+    }
+    data = await res.json();
+  } catch (e) {
+    return fallback(`Anthropic call failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  const data = await res.json();
   const answer = (data.content as { type: string; text?: string }[])
     .filter((block) => block.type === "text")
     .map((block) => block.text)
     .join("");
+  const problems = checkAnswer(answer);
+  if (problems.length > 0) {
+    return fallback(`answer failed check: ${problems.join("; ")}`);
+  }
   return Response.json({ answer, usage: data.usage });
 }
