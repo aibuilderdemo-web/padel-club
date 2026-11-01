@@ -6,7 +6,14 @@ process.loadEnvFile(".env.local");
 
 const MODEL = "claude-haiku-5-5";
 
+const rules = fs.readFileSync("club-rules.md", "utf8");
+
 const prompt = (criteria, answer) => `You grade answers from a padel club's assistant.
+Fail any answer that states a time, price or fact the club rules don't contain, even if it cites a rule.
+
+<rules>
+${rules}
+</rules>
 
 Criteria: ${criteria}
 Answer: ${answer}
