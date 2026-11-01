@@ -20,6 +20,7 @@ export async function Nav() {
       <span className="flex-1" />
       {data.user ? (
         <>
+          <Link href="/ask" className="underline">Ask the club</Link>
           <Link href="/my-bookings" className="underline">My bookings</Link>
           <Link href="/profile" className="underline">Profile</Link>
           <Link href="/membership" className="underline">Become a member</Link>
