@@ -1,12 +1,3 @@
-**Steps**
-1. Log in as member@test.com
-2. Go to /book, pick tomorrow, court 2, 18:00
-3. Click "Book"
-
-**Expected**: confirmation page, booking in "My bookings".
-**Actual**: nothing happens. Every time.
-**Where**: bugs-demo, local and live, Chrome. Guests can book.
-**Evidence**: Network: no request sent.  Console:
 # Padel Club Navigli: booking app
 
 ## Problem
