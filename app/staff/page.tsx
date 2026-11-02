@@ -37,7 +37,7 @@ async function Bookings() {
 
   const { data, error } = await supabase
     .from("bookings")
-    .select("starts_at, guest_name, phone, courts(name)")
+    .select("starts_at, guest_name, phone, user_id, courts(name)")
     .is("cancelled_at", null)
     .gte("starts_at", from)
     .lt("starts_at", to)
@@ -50,6 +50,24 @@ async function Bookings() {
         Bookings: {error.message}
       </p>
     );
+  }
+
+  // bookings.user_id points at auth.users, so look the profile names up separately.
+  const userIds = [...new Set(data.flatMap((b) => (b.user_id ? [b.user_id] : [])))];
+  const names = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+    if (profilesError) {
+      return (
+        <p role="alert" className="mt-4 rounded border border-red-400 bg-red-50 p-3 text-red-800">
+          Member names: {profilesError.message}
+        </p>
+      );
+    }
+    for (const p of profiles) names.set(p.id, p.full_name);
   }
 
   return (
@@ -74,7 +92,7 @@ async function Bookings() {
                 <tr key={i} className="border-b">
                   <td className="py-1">{formatMilan(new Date(b.starts_at)).time}</td>
                   <td>{court?.name}</td>
-                  <td>{b.guest_name}</td>
+                  <td>{b.user_id ? names.get(b.user_id) : b.guest_name}</td>
                   <td>{b.phone}</td>
                 </tr>
               );
