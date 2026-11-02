@@ -1,10 +1,27 @@
 "use server";
 
-import { marked } from "marked";
+import { Marked } from "marked";
 import { milanDayBounds, todayInMilan } from "@/lib/slots";
 import { createAuthClient } from "@/lib/supabase/auth";
 
 export type SummaryState = { error: string | null; html?: string };
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+// The model's output is untrusted (it repeats member comments). Raw HTML is shown as plain text,
+// images are never loaded (only their alt text is shown), and links must be http(s) or mailto.
+const markdown = new Marked({
+  renderer: {
+    html: ({ text }) => escapeHtml(text),
+    image: ({ text }) => escapeHtml(text),
+    link({ href, tokens }) {
+      const label = this.parser.parseInline(tokens);
+      if (!/^(https?:|mailto:)/i.test(href)) return label;
+      return `<a href="${escapeHtml(href)}" rel="noopener noreferrer" target="_blank">${label}</a>`;
+    },
+  },
+});
 
 const MODEL = "claude-haiku-5-5";
 
@@ -70,6 +87,5 @@ export async function summariseFeedback(): Promise<SummaryState> {
     return { error: `Anthropic call failed: ${e instanceof Error ? e.message : String(e)}` };
   }
 
-  // PLANTED WEAKNESS (security video): Markdown with raw HTML allowed, no sanitising.
-  return { error: null, html: await marked.parse(answer) };
+  return { error: null, html: await markdown.parse(answer) };
 }

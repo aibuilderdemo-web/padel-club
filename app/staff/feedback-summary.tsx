@@ -19,7 +19,7 @@ export function FeedbackSummary() {
       {state?.error && (
         <p role="alert" className="mt-4 rounded border border-red-400 bg-red-50 p-3 text-red-800">{state.error}</p>
       )}
-      {/* PLANTED WEAKNESS (security video): the model's Markdown is rendered with raw HTML allowed. */}
+      {/* html is escaped and image-free on the server (see summary-actions.ts). */}
       {state?.html && (
         <div className="mt-4 rounded border p-3" dangerouslySetInnerHTML={{ __html: state.html }} />
       )}
