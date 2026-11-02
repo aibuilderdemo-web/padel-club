@@ -19,6 +19,9 @@ export function FeedbackSummary() {
       {state?.error && (
         <p role="alert" className="mt-4 rounded border border-red-400 bg-red-50 p-3 text-red-800">{state.error}</p>
       )}
+      {state?.warning && (
+        <p role="alert" className="mt-4 rounded border border-amber-400 bg-amber-50 p-3 text-amber-900">{state.warning}</p>
+      )}
       {/* html is escaped and image-free on the server (see summary-actions.ts). */}
       {state?.html && (
         <div className="mt-4 rounded border p-3" dangerouslySetInnerHTML={{ __html: state.html }} />

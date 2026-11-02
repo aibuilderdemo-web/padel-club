@@ -4,7 +4,24 @@ import { Marked } from "marked";
 import { milanDayBounds, todayInMilan } from "@/lib/slots";
 import { createAuthClient } from "@/lib/supabase/auth";
 
-export type SummaryState = { error: string | null; html?: string };
+export type SummaryState = { error: string | null; html?: string; warning?: string };
+
+// Our own domains. A link to any other host triggers the warning.
+const OUR_DOMAINS = ["padel-club-navigli.example"];
+
+// Plain code, no AI: flags the words "free" and "promised", and links to other domains.
+function mentionsPromise(summary: string): boolean {
+  if (/\b(free|promised)\b/i.test(summary)) return true;
+  for (const url of summary.match(/https?:\/\/[^\s)<>\]"']+/gi) ?? []) {
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      if (!OUR_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`))) return true;
+    } catch {
+      return true; // a link we can't parse is not ours
+    }
+  }
+  return false;
+}
 
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -88,5 +105,9 @@ export async function summariseFeedback(): Promise<SummaryState> {
     return { error: `Anthropic call failed: ${e instanceof Error ? e.message : String(e)}` };
   }
 
-  return { error: null, html: await markdown.parse(answer) };
+  return {
+    error: null,
+    html: await markdown.parse(answer),
+    warning: mentionsPromise(answer) ? "Check before acting: this summary mentions a promise." : undefined,
+  };
 }
