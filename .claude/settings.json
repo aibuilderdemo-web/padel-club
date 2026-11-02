@@ -1,5 +1,12 @@
 {
   "permissions": {
-    "deny": ["Read(./.env.local)", "Read(./.env.test)", "Read(./.env)"]
+    "defaultMode": "default",
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.test)",
+      "Read(./.env.sentry-build-plugin)",
+      "Bash(*.env*)"
+    ]
   }
 }

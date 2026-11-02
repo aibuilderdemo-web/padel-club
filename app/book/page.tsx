@@ -4,6 +4,7 @@ import { parseSlot } from "@/lib/slots";
 import { createAuthClient } from "@/lib/supabase/auth";
 import { createPublicClient } from "@/lib/supabase/server";
 import { BookingForm } from "./booking-form";
+import { SlotList } from "./SlotList";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
@@ -24,6 +25,9 @@ async function Details({ searchParams }: { searchParams: SearchParams }) {
   const courtId = one("court");
   const date = one("date");
   const time = one("time");
+
+  // No slot chosen yet: pick one from today's or tomorrow's free slots.
+  if (!courtId && !date && !time) return <SlotList />;
 
   const back = (
     <Link href={date ? `/?date=${encodeURIComponent(date)}` : "/"} className="underline">
