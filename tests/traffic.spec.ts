@@ -1,5 +1,5 @@
 import { test, expect, devices, type Browser, type BrowserContextOptions } from '@playwright/test';
-import { logIn, submitBooking } from './helpers';
+import { logIn, milanDate, submitBooking } from './helpers';
 
 // Simulates 200 visitors on the PREVIEW deployment. Run it with:
 //   PREVIEW_URL=<preview> npx playwright test traffic.spec.ts
@@ -8,7 +8,7 @@ import { logIn, submitBooking } from './helpers';
 // Visitors  61-100 : log in as test01..test40, click "Become a member" (checkout started)
 // Visitors  61-72  : also pay on Stripe Checkout with the 4242 test card (paid)
 // Visitors 101-200 : only look at the free slots
-// Every visitor opens /book and picks a date first.
+// Every visitor opens /book, picks tomorrow and opens a free slot first.
 
 const VISITORS = 200;
 const GUESTS = 60;
@@ -58,11 +58,17 @@ function memberLogin(n: number) {
   return { email, password };
 }
 
+// Next.js puts a role="alert" route announcer on every page, which reads the page title after each
+// navigation: only the app's own alerts count.
+const alert = (page: import('@playwright/test').Page) => page.locator('[role="alert"]:not(#__next-route-announcer__)');
+
 type Result = { viewed: boolean; booked: boolean; startedCheckout: boolean; paid: boolean };
 
 async function visit(browser: Browser, baseURL: string, n: number): Promise<Result> {
   const result: Result = { viewed: false, booked: false, startedCheckout: false, paid: false };
   const context = await browser.newContext({ ...contextFor(n), baseURL });
+  // Without this a click on a missing element waits until the whole run times out.
+  context.setDefaultTimeout(30_000);
   try {
     const page = await context.newPage();
 
@@ -70,24 +76,34 @@ async function visit(browser: Browser, baseURL: string, n: number): Promise<Resu
     const ua = await page.evaluate(() => navigator.userAgent);
     expect(ua, `visitor ${n} user agent`).not.toMatch(/headless/i);
 
-    // Everyone: open /book and pick a date.
+    // Everyone: open /book, pick tomorrow and open a free slot (that sends slot_viewed).
     await page.goto('/book');
-    const isGuest = n <= GUESTS;
-    // Guests take tomorrow (more free slots); the others alternate.
-    await page.getByRole('button', { name: isGuest || n % 2 ? 'Tomorrow' : 'Today' }).click();
-
+    await page.getByRole('button', { name: 'Tomorrow' }).click();
     const slots = page.locator('a[href^="/book?court="]');
-    // Next.js keeps an empty role="alert" route announcer on every page: only an alert with text counts.
-    await expect(slots.first().or(page.getByText('No free slots.')).or(page.getByRole('alert').filter({ hasText: /\S/ }))).toBeVisible();
-    const count = await slots.count();
-    result.viewed = count > 0;
+    await expect(slots.first()).toBeVisible();
 
-    if (isGuest && count > 0) {
-      // Each guest takes a different slot so they do not fight over one.
-      await slots.nth((n - 1) % count).click();
-      await submitBooking(page, `Traffic Guest ${n}`, `333 ${String(n).padStart(7, '0')}`);
-      await expect(page.getByRole('heading', { name: 'Booking confirmed' }).or(page.getByRole('alert'))).toBeVisible();
-      result.booked = await page.getByRole('heading', { name: 'Booking confirmed' }).isVisible();
+    const book = page.getByRole('button', { name: 'Book' });
+    if (n <= GUESTS) {
+      // A day has 32 slots: guests 1-30 book tomorrow, 31-60 the day after (guests can book 2 days ahead).
+      // Each one takes a random free slot; if another visitor got it first, it tries another one.
+      const date = milanDate(n <= GUESTS / 2 ? 1 : 2);
+      for (let attempt = 0; attempt < 8 && !result.booked; attempt++) {
+        const { slots: free = [] } = await (await page.request.get(`/api/slots?date=${date}`)).json();
+        if (!free.length) throw new Error(`no free slots on ${date}`);
+        const slot = free[Math.floor(Math.random() * free.length)];
+        await page.goto(`/book?court=${slot.courtId}&date=${date}&time=${slot.time}`);
+        await expect(book).toBeVisible();
+        result.viewed = true;
+        await submitBooking(page, `Traffic Guest ${n}`, `333 ${String(n).padStart(7, '0')}`);
+        const confirmed = page.getByRole('heading', { name: 'Booking confirmed' });
+        await expect(confirmed.or(alert(page))).toBeVisible({ timeout: 20_000 });
+        result.booked = await confirmed.isVisible();
+      }
+      if (!result.booked) console.log(`visitor ${n} not booked: ${await alert(page).first().innerText().catch(() => '?')}`);
+    } else {
+      await slots.nth(n % (await slots.count())).click();
+      await expect(book).toBeVisible();
+      result.viewed = true;
     }
 
     if (n >= MEMBERS_FIRST && n <= MEMBERS_LAST) {
@@ -115,9 +131,12 @@ async function visit(browser: Browser, baseURL: string, n: number): Promise<Resu
 // Stripe Checkout in test mode with the 4242 test card.
 async function payOnStripe(page: import('@playwright/test').Page) {
   // Checkout lists card, Klarna and others in an accordion: open the card one first.
+  // Wait for the page to load either way before choosing.
   const card = page.getByTestId('card-accordion-item');
-  if (await card.isVisible().catch(() => false)) await card.click();
-  await page.locator('#cardNumber').fill('4242 4242 4242 4242');
+  const number = page.locator('#cardNumber');
+  await expect(card.or(number).first()).toBeVisible({ timeout: 30_000 });
+  if (await card.isVisible()) await card.click();
+  await number.fill('4242 4242 4242 4242');
   await page.locator('#cardExpiry').fill('12 / 34');
   await page.locator('#cardCvc').fill('123');
   const name = page.locator('#billingName');
