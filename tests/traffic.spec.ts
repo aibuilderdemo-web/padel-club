@@ -77,7 +77,8 @@ async function visit(browser: Browser, baseURL: string, n: number): Promise<Resu
     await page.getByRole('button', { name: isGuest || n % 2 ? 'Tomorrow' : 'Today' }).click();
 
     const slots = page.locator('a[href^="/book?court="]');
-    await expect(slots.first().or(page.getByText('No free slots.')).or(page.getByRole('alert'))).toBeVisible();
+    // Next.js keeps an empty role="alert" route announcer on every page: only an alert with text counts.
+    await expect(slots.first().or(page.getByText('No free slots.')).or(page.getByRole('alert').filter({ hasText: /\S/ }))).toBeVisible();
     const count = await slots.count();
     result.viewed = count > 0;
 
