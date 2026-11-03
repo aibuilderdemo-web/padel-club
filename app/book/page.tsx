@@ -5,6 +5,7 @@ import { createAuthClient } from "@/lib/supabase/auth";
 import { createPublicClient } from "@/lib/supabase/server";
 import { BookingForm } from "./booking-form";
 import { SlotList } from "./SlotList";
+import { SlotViewed } from "./slot-viewed";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
@@ -72,6 +73,7 @@ async function Details({ searchParams }: { searchParams: SearchParams }) {
 
   return (
     <div className="mt-4">
+      <SlotViewed courtId={String(court.id)} date={date} time={time} />
       <p>
         {court.name}, {date}, {time} (Milan time, 90 minutes)
       </p>
