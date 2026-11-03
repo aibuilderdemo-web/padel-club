@@ -1,5 +1,5 @@
 // prices.js. Dollars per million tokens.
-// Copied from claude.com/pricing on 2026-10-23.
+// Copied from claude.com/pricing on 2026-11-03.
 export const PRICES = {
   "claude-haiku-5-5": { input: 0.10, output: 0.50 },
   "claude-opus-5-5":  { input: 4.00, output: 20.00 },

@@ -8,6 +8,8 @@ import { costOf } from "@/prices.js";
 const MODEL = "claude-haiku-5-5";
 const FALLBACK = "I can't answer that right now. Please ask at reception.";
 const PROMISES = ["free", "refund guaranteed", "exception"];
+const DAILY_LIMIT = 20;
+const LIMIT_MESSAGE = "You've asked 20 questions today, the daily limit. Ask again tomorrow, or ask the desk.";
 const PHONE_OR_EMAIL = /\+?\d[\d ]{8,}\d|\S+@\S+\.\S+/;
 
 function checkAnswer(answer: string): string[] {
@@ -56,6 +58,15 @@ export async function POST(request: Request) {
   const question = typeof body?.question === "string" ? body.question.trim() : "";
   if (!question) {
     return Response.json({ error: "Write a question first." }, { status: 400 });
+  }
+
+  // Count first, in one database step, so two requests at the same moment can't both pass.
+  const { data: n, error: countError } = await createAdminClient().rpc("ai_count_question", { p_user: auth.user.id });
+  if (countError) {
+    return Response.json({ error: `Could not check the daily limit: ${countError.message}` }, { status: 500 });
+  }
+  if (n > DAILY_LIMIT) {
+    return Response.json({ error: LIMIT_MESSAGE }, { status: 429 });
   }
 
   const root = process.cwd();

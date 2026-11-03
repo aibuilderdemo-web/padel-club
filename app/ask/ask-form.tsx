@@ -24,7 +24,8 @@ export function AskForm() {
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`Error ${res.status}: ${text.slice(0, 500)}`);
+        const message = res.status === 429 ? (() => { try { return JSON.parse(text).error; } catch { return null; } })() : null;
+        throw new Error(message ?? `Error ${res.status}: ${text.slice(0, 500)}`);
       }
       setAnswer((await res.json()).answer);
     } catch (e) {
