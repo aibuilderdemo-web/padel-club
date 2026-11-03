@@ -17,7 +17,10 @@ const MEMBERS_LAST = 100;
 const PAYERS_LAST = 72;
 const PARALLEL = 10;
 
-// Real device profiles only: their user agents say "Chrome", never "HeadlessChrome" (PostHog drops those as bots).
+// PostHog drops bots: a user agent or a browser brand saying "HeadlessChrome", or navigator.webdriver set.
+// So: real device profiles, the full Chromium build (the default headless shell reports the
+// HeadlessChrome brand) and navigator.webdriver off in every visitor (see visit()).
+test.use({ channel: 'chromium' });
 const PHONES = ['iPhone 13', 'Pixel 7'];
 const DESKTOPS = ['Desktop Chrome', 'Desktop Edge'];
 
@@ -69,6 +72,7 @@ async function visit(browser: Browser, baseURL: string, n: number): Promise<Resu
   const context = await browser.newContext({ ...contextFor(n), baseURL });
   // Without this a click on a missing element waits until the whole run times out.
   context.setDefaultTimeout(30_000);
+  await context.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => false }));
   try {
     const page = await context.newPage();
 
@@ -88,7 +92,7 @@ async function visit(browser: Browser, baseURL: string, n: number): Promise<Resu
       // Each one takes a random free slot; if another visitor got it first, it tries another one.
       const date = milanDate(n <= GUESTS / 2 ? 1 : 2);
       for (let attempt = 0; attempt < 8 && !result.booked; attempt++) {
-        const { slots: free = [] } = await (await page.request.get(`/api/slots?date=${date}`)).json();
+        const { slots: free = [] } = await (await page.request.get(`/api/slots?date=${date}`, { timeout: 60_000 })).json();
         if (!free.length) throw new Error(`no free slots on ${date}`);
         const slot = free[Math.floor(Math.random() * free.length)];
         await page.goto(`/book?court=${slot.courtId}&date=${date}&time=${slot.time}`);
@@ -123,6 +127,8 @@ async function visit(browser: Browser, baseURL: string, n: number): Promise<Resu
   } catch (e) {
     console.log(`visitor ${n} stopped: ${String(e).split('\n')[0]}`);
   } finally {
+    // posthog-js sends its events in batches every few seconds: let the last batch go before closing.
+    await context.pages()[0]?.waitForTimeout(4000).catch(() => {});
     await context.close();
   }
   return result;
