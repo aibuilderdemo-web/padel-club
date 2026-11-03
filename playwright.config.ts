@@ -17,6 +17,8 @@ for (const name of ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABL
 
 export default defineConfig({
   testDir: './tests',
+  // The 200-visitor traffic run has its own config (playwright.traffic.config.ts).
+  testIgnore: 'traffic.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
