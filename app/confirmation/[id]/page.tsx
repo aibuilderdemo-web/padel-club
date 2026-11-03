@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { formatMilan } from "@/lib/slots";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { BookingCompleted } from "./booking-completed";
 
 export default function ConfirmationPage({ params }: { params: Promise<{ id: string }> }) {
   return (
@@ -36,7 +35,6 @@ async function Booking({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
-      {!data.cancelled_at && <BookingCompleted bookingId={id} />}
       <h1 className="text-2xl font-semibold">
         {data.cancelled_at ? "Booking cancelled" : "Booking confirmed"}
       </h1>

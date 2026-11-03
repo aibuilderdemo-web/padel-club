@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { track } from "@/lib/posthog-client";
 
 export function AskForm() {
   const [answer, setAnswer] = useState<string | null>(null);
@@ -11,8 +10,6 @@ export function AskForm() {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const question = new FormData(event.currentTarget).get("question");
-    // The question text is not sent: it can contain names or phone numbers.
-    track("ask_question", { question_length: String(question ?? "").length });
     setPending(true);
     setAnswer(null);
     setError(null);

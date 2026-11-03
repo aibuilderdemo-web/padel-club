@@ -1,7 +1,6 @@
 import type Stripe from "stripe";
 import { firstNameOf, isActiveMember } from "@/lib/membership";
 import { notifyNewMember } from "@/lib/n8n";
-import { captureServer } from "@/lib/posthog-server";
 import { getStripe } from "@/lib/stripe";
 import { sendWelcomeEmail } from "@/lib/welcome-email";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -65,11 +64,6 @@ async function handle(event: Stripe.Event, stripe: Stripe, db: Db) {
         ...(status ? { membership_status: status } : {}),
       });
       if (isActiveMember(status)) {
-        await captureServer(userId, "membership_activated", {
-          subscription_status: status,
-          amount_total: session.amount_total,
-          currency: session.currency,
-        });
         await welcome(stripe, session, profile.full_name);
         await tellN8n(session, profile.full_name);
       }
