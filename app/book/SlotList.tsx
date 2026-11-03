@@ -76,7 +76,7 @@ export function SlotList() {
           {slots.map((s) => (
             <li key={`${s.courtId}-${s.time}`}>
               <Link href={`/book?court=${s.courtId}&date=${date}&time=${s.time}`} className="block py-2">
-                {formatSlot(s.label)} · {s.court}
+                {formatSlot(s.start)} · {s.court}
               </Link>
             </li>
           ))}
