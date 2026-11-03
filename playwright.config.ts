@@ -9,6 +9,10 @@ try {
   process.loadEnvFile('.env.local');
 } catch {}
 
+// PREVIEW_URL set: the traffic run (tests/traffic.spec.ts) against a Vercel preview, with no local
+// server, no traces and no HTML report. Unset: the normal tests on a local build, without traffic.spec.ts.
+const preview = !!process.env.PREVIEW_URL;
+
 const supabaseEnv: Record<string, string> = {};
 for (const name of ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']) {
   const value = process.env[name];
@@ -17,16 +21,15 @@ for (const name of ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABL
 
 export default defineConfig({
   testDir: './tests',
-  // The 200-visitor traffic run has its own config (playwright.traffic.config.ts).
-  testIgnore: 'traffic.spec.ts',
+  testIgnore: preview ? undefined : 'traffic.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: [['line'], ['html', { open: process.env.CI ? 'never' : 'on-failure' }]],
+  reporter: preview ? 'line' : [['line'], ['html', { open: process.env.CI ? 'never' : 'on-failure' }]],
   use: {
     baseURL: 'http://localhost:3000',
-    trace: 'on',
+    trace: preview ? 'off' : 'on',
   },
   // Chromium only (CI installs only this browser).
   projects: [
@@ -35,7 +38,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
+  webServer: preview ? undefined : {
     command: 'npm run build && npm run start',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,

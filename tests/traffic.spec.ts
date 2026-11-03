@@ -2,7 +2,7 @@ import { test, expect, devices, type Browser, type BrowserContextOptions } from 
 import { logIn, submitBooking } from './helpers';
 
 // Simulates 200 visitors on the PREVIEW deployment. Run it with:
-//   npx playwright test -c playwright.traffic.config.ts
+//   PREVIEW_URL=<preview> npx playwright test traffic.spec.ts
 //
 // Visitors   1-60  : guest, complete a booking
 // Visitors  61-100 : log in as test01..test40, click "Become a member" (checkout started)
@@ -113,13 +113,16 @@ async function visit(browser: Browser, baseURL: string, n: number): Promise<Resu
 
 // Stripe Checkout in test mode with the 4242 test card.
 async function payOnStripe(page: import('@playwright/test').Page) {
-  await page.getByLabel('Card number').fill('4242 4242 4242 4242');
-  await page.getByLabel(/expiration/i).fill('12 / 34');
-  await page.getByLabel('CVC').fill('123');
-  const name = page.getByLabel(/cardholder name|name on card/i);
+  // Checkout lists card, Klarna and others in an accordion: open the card one first.
+  const card = page.getByTestId('card-accordion-item');
+  if (await card.isVisible().catch(() => false)) await card.click();
+  await page.locator('#cardNumber').fill('4242 4242 4242 4242');
+  await page.locator('#cardExpiry').fill('12 / 34');
+  await page.locator('#cardCvc').fill('123');
+  const name = page.locator('#billingName');
   if (await name.count()) await name.fill('Traffic Member');
-  const zip = page.getByLabel(/zip|postal/i);
-  if (await zip.count()) await zip.fill('20123');
+  const zip = page.locator('#billingPostalCode');
+  if (await zip.isVisible().catch(() => false)) await zip.fill('20123');
   await page.getByTestId('hosted-payment-submit-button').click();
 }
 
