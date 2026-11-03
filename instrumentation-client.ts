@@ -3,6 +3,7 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
+import posthog from "posthog-js";
 
 Sentry.init({
   dsn: "https://6c363f05e85b14147a749f5a8b6fc935@o4512318026285056.ingest.de.sentry.io/4512364896518224",
@@ -24,5 +25,21 @@ Sentry.init({
     urlQueryParams: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
   },
 });
+
+// Product analytics, EU region. Only the five named events are sent: no autocapture,
+// no pageviews, no session recording. Users are identified by ID in app/posthog-user.tsx.
+const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+if (posthogKey) {
+  posthog.init(posthogKey, {
+    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.i.posthog.com",
+    person_profiles: "identified_only",
+    autocapture: false,
+    capture_pageview: false,
+    capture_pageleave: false,
+    disable_session_recording: true,
+  });
+} else {
+  console.warn("PostHog: NEXT_PUBLIC_POSTHOG_KEY is not set, analytics are off.");
+}
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
