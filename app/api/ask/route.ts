@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createAuthClient } from "@/lib/supabase/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/server";
+import { costOf } from "@/prices.js";
 
 const MODEL = "claude-haiku-5-5";
 const FALLBACK = "I can't answer that right now. Please ask at reception.";
@@ -24,6 +26,23 @@ function fallback(reason: string) {
   return Response.json({ answer: FALLBACK }, { status: 200 });
 }
 
+type Usage = { input_tokens: number; output_tokens: number };
+
+// One ai_usage row per call that reached the model. A failed log never fails the answer.
+async function logUsage(userId: string, usage: Usage, started: number, outcome: "answered" | "fallback") {
+  const { error } = await createAdminClient().from("ai_usage").insert({
+    user_id: userId,
+    feature: "ask_the_club",
+    model: MODEL,
+    input_tokens: usage.input_tokens,
+    output_tokens: usage.output_tokens,
+    cost: costOf(MODEL, usage),
+    duration_ms: Date.now() - started,
+    outcome,
+  });
+  if (error) console.error(`[ask] usage not logged: ${error.message}`);
+}
+
 export async function POST(request: Request) {
   // Browser: session cookies. Scripts (run_eval.js): "Authorization: Bearer <access token>".
   const bearer = request.headers.get("authorization")?.replace(/^Bearer /i, "");
@@ -44,6 +63,7 @@ export async function POST(request: Request) {
   const rules = await readFile(path.join(root, "club-rules.md"), "utf8");
   const system = template.replace("{club-rules.md}", () => rules);
 
+  const started = Date.now();
   let data;
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -74,6 +94,7 @@ export async function POST(request: Request) {
     .map((block) => block.text)
     .join("");
   const problems = checkAnswer(answer);
+  await logUsage(auth.user.id, data.usage, started, problems.length > 0 ? "fallback" : "answered");
   if (problems.length > 0) {
     return fallback(`answer failed check: ${problems.join("; ")}`);
   }
