@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -18,7 +19,9 @@ export async function proxy(request: NextRequest) {
       },
     },
   );
-  await supabase.auth.getUser();
+  const { data } = await supabase.auth.getUser();
+  // Sentry gets the member ID only, never the email.
+  Sentry.setUser(data.user ? { id: data.user.id } : null);
   return response;
 }
 
