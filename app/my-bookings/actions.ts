@@ -12,10 +12,10 @@ export async function cancelOwn(_prev: CancelOwnState, formData: FormData): Prom
   const { data, error } = await (await createAuthClient())
     .from("bookings")
     .update({ cancelled_at: new Date().toISOString() })
-    .eq("id", id)
+    .eq("booking_id", id)
     .is("cancelled_at", null)
     .select("id");
-  if (error) return { error: `Could not cancel: ${error.message}` };
+  if (error) return { error: "Cancel failed" };
   if (!data || data.length === 0) return { error: "Nothing was cancelled (already cancelled, or not your booking)." };
   revalidatePath("/my-bookings");
   return { error: null };
