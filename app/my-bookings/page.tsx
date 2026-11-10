@@ -5,8 +5,14 @@ import { headers } from "next/headers";
 import { Suspense } from "react";
 import { currentUser } from "@/lib/auth";
 import { cancelBooking, myBookings, slotTime, type MyBooking } from "@/lib/booking";
-import { startCheckout } from "@/lib/membership";
-import { BecomeMember, CancelButton } from "./cancel";
+import { openCustomerPortal, startCheckout } from "@/lib/membership";
+import { BecomeMember, CancelButton, ManageMembership } from "./cancel";
+
+// This site's address, for the pages Stripe sends the user back to.
+async function siteOrigin(): Promise<string> {
+  const h = await headers();
+  return `${h.get("x-forwarded-proto") ?? "http"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
+}
 
 // Logged-in users only, checked here on the server. Sends them to Stripe
 // Checkout, or returns Stripe's error for the page.
@@ -14,11 +20,24 @@ async function becomeMemberAction(): Promise<string | null> {
   "use server";
   const user = await currentUser();
   if (!user) redirect("/login?next=/my-bookings");
-  const h = await headers();
-  const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
   let url: string;
   try {
-    url = await startCheckout(user, origin);
+    url = await startCheckout(user, await siteOrigin());
+  } catch (error) {
+    return (error as Error).message;
+  }
+  redirect(url);
+}
+
+// Logged-in active members only: openCustomerPortal() checks the membership
+// on the server. Sends them to Stripe's portal, or returns the error.
+async function manageMembershipAction(): Promise<string | null> {
+  "use server";
+  const user = await currentUser();
+  if (!user) redirect("/login?next=/my-bookings");
+  let url: string;
+  try {
+    url = await openCustomerPortal(user, await siteOrigin());
   } catch (error) {
     return (error as Error).message;
   }
@@ -68,9 +87,7 @@ async function MyBookingsView() {
       )}
 
       {user.profile?.paidMember ? (
-        <p className="mt-6 rounded border border-club p-4 text-lg font-semibold text-club">
-          You are a member of the club.
-        </p>
+        <ManageMembership action={manageMembershipAction} />
       ) : (
         <BecomeMember action={becomeMemberAction} />
       )}

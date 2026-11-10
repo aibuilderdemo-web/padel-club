@@ -64,7 +64,8 @@ Four courts: Court 1, Court 2, Court 3, Court 4.
   (stripe_events). Active means status active or trialing; past_due, unpaid
   or canceled are not. The success page only says the membership will be
   active in a moment. Active members see "You are a member" instead of the
-  button and book 7 days ahead.
+  button and book 7 days ahead. Their "Manage membership" button opens
+  Stripe's customer portal for their saved customer id.
 
 ## Out of scope
 Payments for bookings, tournaments, coaching, an app store app.

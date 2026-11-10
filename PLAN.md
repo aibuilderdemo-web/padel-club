@@ -156,6 +156,20 @@ Checks:
 - Vercel: STRIPE_WEBHOOK_SECRET from a Stripe dashboard endpoint at
   https://<site>/api/stripe/webhook with the three events above. Redeploy.
 
+## [x] 11. Manage membership: Stripe customer portal
+Done (briefs/manage.txt): "Manage membership" button in the member box on My bookings; the server action checks login, lib/membership.ts openCustomerPortal() checks the active membership, reads the saved stripe_customer_id as the user (RLS) and redirects to a Stripe portal session that returns to My bookings; left: your check with Stripe test keys, and saving the portal settings once in the Stripe dashboard.
+Checks:
+- Stripe dashboard (test mode) → Settings → Billing → Customer portal: save
+  the settings once, with cancelling allowed.
+- As an active member, My bookings shows "You are a member" and "Manage
+  membership". Pressing it opens Stripe's portal with my subscription.
+- "Return to …" in the portal lands on My bookings.
+- Cancel in the portal (immediately): with stripe listen running, the
+  webhook sets the status to canceled, and "Become a member" is back.
+- Without a membership, there is no Manage button. Calling the action anyway
+  shows "Only members with an active membership can manage it."
+- With the portal settings not saved, Stripe's error shows under the button.
+
 ## Open questions (ask before the slice)
 - Slice 2: are bookings written by a database function called with the
   publishable key (rules stay in the database), or by the server with the

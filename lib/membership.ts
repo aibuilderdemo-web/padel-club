@@ -6,7 +6,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
-import type { User } from "./auth";
+import { supabaseServer, type User } from "./auth";
 
 function stripeConfig(): { stripe: Stripe; priceId: string } {
   const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -34,6 +34,29 @@ export async function startCheckout(user: User, origin: string): Promise<string>
     cancel_url: `${origin}/membership/cancel`,
   });
   if (!session.url) throw new Error("Stripe did not return a checkout page.");
+  return session.url;
+}
+
+// Opens Stripe's customer portal (change card, see invoices, cancel) for an
+// active member. Uses the Stripe customer id the webhook saved, read as the
+// user, so RLS only ever gives their own. Returns the Stripe page to send
+// them to; Stripe sends them back to My bookings.
+export async function openCustomerPortal(user: User, origin: string): Promise<string> {
+  if (!user.profile?.paidMember) throw new Error("Only members with an active membership can manage it.");
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("stripe_customer_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.stripe_customer_id) throw new Error("No Stripe customer is saved for your account.");
+
+  const { stripe } = stripeConfig();
+  const session = await stripe.billingPortal.sessions.create({
+    customer: data.stripe_customer_id,
+    return_url: `${origin}/my-bookings`,
+  });
   return session.url;
 }
 
