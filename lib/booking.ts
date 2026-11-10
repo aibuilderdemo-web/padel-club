@@ -6,6 +6,7 @@ import { connection } from "next/server";
 
 const TIME_ZONE = "Europe/Rome";
 const BOOKABLE_DAYS = 14;
+const TAKEN = "Sorry, someone has just booked this court at that time. Please pick another time.";
 
 export type Day = { date: string; label: string };
 export type Slot = { startsAt: string; time: string };
@@ -78,6 +79,8 @@ export async function book(input: {
     p_guest_name: input.name,
     p_phone: input.phone,
   });
+  // 23P01: the no-overlap rule refused it, so someone else got there first.
+  if (error?.code === "23P01") throw new Error(TAKEN);
   if (error) throw new Error(error.message);
   return data as string;
 }
