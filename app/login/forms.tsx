@@ -94,3 +94,24 @@ export function SignupForm({ action }: { action: Action }) {
     </form>
   );
 }
+
+export function ProfileForm({ action, fullName, phone }: { action: Action; fullName: string; phone: string }) {
+  const [state, formAction, pending] = useActionState(action, {
+    error: null,
+    done: null,
+    values: { full_name: fullName, phone },
+  });
+  return (
+    <form action={formAction} className="mt-6 flex flex-col gap-4">
+      <Field label="Full name" name="full_name" autoComplete="name" value={state.values.full_name} />
+      <Field label="Phone" name="phone" type="tel" autoComplete="tel" value={state.values.phone} />
+      <ErrorBox message={state.error && `Could not save: ${state.error}`} />
+      {state.done && (
+        <p role="status" className="rounded border border-zinc-300 bg-zinc-50 p-4">
+          {state.done}
+        </p>
+      )}
+      <Submit pending={pending} label="Save" pendingLabel="Saving…" />
+    </form>
+  );
+}

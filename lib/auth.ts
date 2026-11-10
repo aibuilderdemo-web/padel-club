@@ -62,6 +62,21 @@ export function isStaff(user: User | null): boolean {
   return user?.profile?.role === "staff" || user?.profile?.role === "admin";
 }
 
+// Changes the logged-in user's name and phone. The database allows only
+// these two columns, only on your own row, and refuses blank values.
+export async function updateProfile(input: { fullName: string; phone: string }): Promise<void> {
+  const user = await currentUser();
+  if (!user) throw new Error("Please log in to change your profile.");
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ full_name: input.fullName, phone: input.phone })
+    .eq("id", user.id)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (data.length === 0) throw new Error("Your profile was not found.");
+}
+
 // Makes an account. The database makes the profile from fullName and phone.
 // Returns true when Supabase wants the email confirmed first.
 export async function signUp(input: {

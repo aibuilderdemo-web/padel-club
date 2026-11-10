@@ -39,7 +39,14 @@ async function MyBookingsView() {
 
   return (
     <>
-      {user.profile && <p className="mt-2 text-lg">Hello, {user.profile.fullName}.</p>}
+      {user.profile && (
+        <p className="mt-2 text-lg">
+          Hello, {user.profile.fullName}.{" "}
+          <Link href="/profile" className="text-club underline">
+            Edit name and phone
+          </Link>
+        </p>
+      )}
 
       {result.error && (
         <p role="alert" className="mt-6 rounded border border-red-300 bg-red-50 p-4 text-red-800">

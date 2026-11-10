@@ -83,6 +83,16 @@ Checks:
   delete someone else's booking. Staff see every booking. Only an admin can
   call set_role.
 
+## [x] 7. Members edit their name and phone
+Done: /profile (logged-in only, checked on the server in page and action), link from My bookings, RLS from slice 6 limits it to own name and phone; left: your check against Supabase.
+Changes the profile only. Bookings already made keep the name and phone
+they were booked with; new bookings are prefilled with the new details.
+Checks:
+- Logged out, /profile sends me to log in.
+- I change my name and phone, press Save, see "Saved." The profiles row
+  changes in the Table Editor. The booking form shows the new details.
+- An empty name or phone shows an error on the page. Nothing changes.
+
 ## Open questions (ask before the slice)
 - Slice 2: are bookings written by a database function called with the
   publishable key (rules stay in the database), or by the server with the
