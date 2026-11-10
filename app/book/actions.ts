@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { sendBookingReceipt } from "@/lib/booking-receipt";
 import { parseSlot } from "@/lib/slots";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAuthClient } from "@/lib/supabase/auth";
@@ -47,6 +48,15 @@ export async function bookSlot(_prev: BookState, formData: FormData): Promise<Bo
       };
     }
     return { error: `Could not book: ${error.message}` };
+  }
+  if (auth.user?.email) {
+    await sendBookingReceipt({
+      to: auth.user.email,
+      name,
+      startsAt,
+      courtId,
+      reference: data.public_id,
+    }).catch((e) => console.error("Booking receipt failed:", e));
   }
   redirect(`/confirmation/${data.public_id}`);
 }
