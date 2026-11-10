@@ -33,7 +33,8 @@ Checks:
 - Empty name or phone shows an error on the page.
 - A start in the past, or more than 13 days ahead, is refused by the database.
 
-## [ ] 3. No double booking, refused by the database
+## [x] 3. No double booking, refused by the database
+Done: bookings_no_overlap exclusion constraint, book() turns it into a friendly message; left: your check against Supabase.
 An exclusion constraint on bookings: two bookings on the same court can't
 overlap.
 Checks:

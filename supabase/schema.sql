@@ -25,8 +25,6 @@ create policy "Anyone can read courts"
   using (true);
 
 -- Bookings ----------------------------------------------------------------
--- No rule against overlapping bookings yet: that comes in task 3.
-
 create table if not exists public.bookings (
   id uuid primary key default gen_random_uuid(),
   court_id smallint not null references public.courts (id),
@@ -53,6 +51,16 @@ create table if not exists public.bookings (
   constraint bookings_phone_not_blank
     check (btrim(phone) <> '')
 );
+
+-- No overlap: two bookings on the same court can't share any minute.
+-- Ranges are [start, end), so an 18:00 booking blocks starts from 17:00 to
+-- 19:00, while 16:30 and 19:30 still fit. Dropped and added again so the
+-- file stays safe to rerun; adding fails if overlapping rows already exist.
+create extension if not exists btree_gist with schema extensions;
+
+alter table public.bookings drop constraint if exists bookings_no_overlap;
+alter table public.bookings add constraint bookings_no_overlap
+  exclude using gist (court_id with =, tstzrange(starts_at, ends_at) with &&);
 
 -- RLS on and no policies: the public can't read or write bookings.
 alter table public.bookings enable row level security;
@@ -148,7 +156,12 @@ begin
               btrim(p_guest_name), btrim(p_phone), code)
       returning id into new_id;
       return new_id;
-    exception when unique_violation then
+    exception
+    when exclusion_violation then
+      raise exception using
+        errcode = 'exclusion_violation',
+        message = 'Sorry, someone has just booked this court at that time. Please pick another time.';
+    when unique_violation then
       -- Only a cancel code clash is retried; anything else goes to the page.
       get stacked diagnostics clash = constraint_name;
       if clash <> 'bookings_cancel_code_key' then
