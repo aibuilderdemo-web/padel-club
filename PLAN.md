@@ -93,6 +93,25 @@ Checks:
   changes in the Table Editor. The booking form shows the new details.
 - An empty name or phone shows an error on the page. Nothing changes.
 
+## [x] 8. Become a member: Stripe Checkout
+Done (briefs/checkout-prompt.txt): lib/membership.ts startCheckout(), "Become a member" box on /my-bookings (login checked in the server action), Stripe Checkout in subscription mode linked by user id, /membership/success and /membership/cancel; left: your check with Stripe test keys, and switching the membership on after payment (webhook).
+A logged-in user presses "Become a member" on My bookings. The server makes
+a Stripe Checkout Session (subscription, STRIPE_PRICE_ID) with
+client_reference_id and metadata user_id = the user's id, and sends them to
+Stripe. STRIPE_SECRET_KEY is read on the server only. The success page
+doesn't change the membership yet.
+Checks:
+- .env.local and Vercel have STRIPE_SECRET_KEY (sk_test_…) and
+  STRIPE_PRICE_ID (price_… of a recurring price). Restart npm run dev.
+- Logged out, /my-bookings, /membership/success and /membership/cancel send
+  me to log in.
+- Logged in, I press "Become a member" and land on Stripe with the price.
+  I pay with 4242 4242 4242 4242 and land on the success page.
+- In the Stripe dashboard the session has my user id as client reference.
+- Going back from Stripe lands on the cancel page. Nothing charged.
+- With STRIPE_PRICE_ID wrong, the error shows under the button.
+- The page source and network tab never contain the secret key.
+
 ## Open questions (ask before the slice)
 - Slice 2: are bookings written by a database function called with the
   publishable key (rules stay in the database), or by the server with the

@@ -54,9 +54,13 @@ Four courts: Court 1, Court 2, Court 3, Court 4.
 - Sign-up needs email confirmation (link to /auth/confirm).
 - A member's booking form is prefilled from their profile and can be edited.
 - Language: the whole site is in English.
+- Paid membership: a Stripe subscription (STRIPE_PRICE_ID), separate from the
+  "member" role every account gets at sign-up. Logged-in users start it with
+  "Become a member" on My bookings. Checkout only for now; paying doesn't
+  switch the membership on yet.
 
 ## Out of scope
-Payments (day 19), tournaments, coaching, an app store app.
+Payments for bookings, tournaments, coaching, an app store app.
 
 ## Acceptance checks
 - I open tomorrow. I see 4 courts and their free slots.

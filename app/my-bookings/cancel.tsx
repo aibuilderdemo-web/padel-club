@@ -29,3 +29,31 @@ export function CancelButton({
     </form>
   );
 }
+
+// The "Become a member" box. The action sends the user on to Stripe, or
+// returns Stripe's error, which shows under the button.
+export function BecomeMember({
+  action,
+}: {
+  action: (error: string | null, form: FormData) => Promise<string | null>;
+}) {
+  const [error, formAction, pending] = useActionState(action, null);
+  return (
+    <form action={formAction} className="mt-6 rounded border border-zinc-300 p-4">
+      <h2 className="font-heading text-2xl font-bold">Become a member</h2>
+      <p className="mt-1 text-zinc-700">A club membership, paid by card on Stripe.</p>
+      <button
+        type="submit"
+        disabled={pending}
+        className="mt-3 min-h-11 w-full rounded bg-club px-4 font-semibold text-white hover:bg-club-dark disabled:opacity-60 sm:w-auto"
+      >
+        {pending ? "Opening Stripe…" : "Become a member"}
+      </button>
+      {error && (
+        <p role="alert" className="mt-2 rounded border border-red-300 bg-red-50 p-3 text-red-800">
+          Could not start the payment: {error}
+        </p>
+      )}
+    </form>
+  );
+}

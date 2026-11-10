@@ -1,10 +1,29 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import { currentUser } from "@/lib/auth";
 import { cancelBooking, myBookings, slotTime, type MyBooking } from "@/lib/booking";
-import { CancelButton } from "./cancel";
+import { startCheckout } from "@/lib/membership";
+import { BecomeMember, CancelButton } from "./cancel";
+
+// Logged-in users only, checked here on the server. Sends them to Stripe
+// Checkout, or returns Stripe's error for the page.
+async function becomeMemberAction(): Promise<string | null> {
+  "use server";
+  const user = await currentUser();
+  if (!user) redirect("/login?next=/my-bookings");
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
+  let url: string;
+  try {
+    url = await startCheckout(user, origin);
+  } catch (error) {
+    return (error as Error).message;
+  }
+  redirect(url);
+}
 
 async function cancelAction(_: string | null, form: FormData): Promise<string | null> {
   "use server";
@@ -47,6 +66,8 @@ async function MyBookingsView() {
           </Link>
         </p>
       )}
+
+      <BecomeMember action={becomeMemberAction} />
 
       {result.error && (
         <p role="alert" className="mt-6 rounded border border-red-300 bg-red-50 p-4 text-red-800">
