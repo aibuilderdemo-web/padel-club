@@ -1,29 +1,28 @@
 // Everything the pages need about courts and bookings.
 // Hides Supabase and Milan time. Supabase errors are thrown with their message.
 
-import { createClient } from "@supabase/supabase-js";
 import { connection } from "next/server";
+import { currentUser, supabaseServer } from "@/lib/auth";
 
 const TIME_ZONE = "Europe/Rome";
-const BOOKABLE_DAYS = 14;
 
 export type Day = { date: string; label: string };
 export type Slot = { startsAt: string; time: string };
 export type CourtSlots = { id: number; name: string; slots: Slot[] };
 
-// Publishable key only: the public can read courts and call free_slots.
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  { auth: { persistSession: false } },
-);
+// Every call acts as the visitor (a guest or the logged-in user) through
+// lib/auth.ts, so the database's rules and RLS decide what they may do.
 
-// Today plus the next 13 days, Milan time. Dates are YYYY-MM-DD.
+// Today plus the days the visitor may book ahead, Milan time. The database
+// says how many: 2 for a guest, 7 when logged in. Dates are YYYY-MM-DD.
 export async function bookableDays(): Promise<Day[]> {
   await connection(); // "today" is read per request, never prerendered
+  const supabase = await supabaseServer();
+  const ahead = await supabase.rpc("booking_days_ahead");
+  if (ahead.error) throw new Error(ahead.error.message);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(new Date());
   const noon = new Date(`${today}T12:00:00Z`);
-  return Array.from({ length: BOOKABLE_DAYS }, (_, i) => {
+  return Array.from({ length: (ahead.data as number) + 1 }, (_, i) => {
     const day = new Date(noon.getTime() + i * 24 * 60 * 60 * 1000);
     const label =
       i === 0
@@ -42,6 +41,7 @@ export async function bookableDays(): Promise<Day[]> {
 
 // The courts with their free start times on a day, in court order.
 export async function getFreeSlots(date: string): Promise<CourtSlots[]> {
+  const supabase = await supabaseServer();
   const [courts, free] = await Promise.all([
     supabase.from("courts").select("id, name").order("id"),
     supabase.rpc("free_slots", { for_day: date }),
@@ -60,18 +60,21 @@ export async function getFreeSlots(date: string): Promise<CourtSlots[]> {
 
 // One court by id, or null if there is none.
 export async function getCourt(id: number): Promise<{ id: number; name: string } | null> {
+  const supabase = await supabaseServer();
   const { data, error } = await supabase.from("courts").select("id, name").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   return data;
 }
 
 // Books a slot through the database's book() function. Returns the booking id.
+// When logged in, the database links the booking to the user.
 export async function book(input: {
   courtId: number;
   startsAt: string;
   name: string;
   phone: string;
 }): Promise<string> {
+  const supabase = await supabaseServer();
   const { data, error } = await supabase.rpc("book", {
     p_court_id: input.courtId,
     p_starts_at: input.startsAt,
@@ -86,10 +89,51 @@ export type Confirmation = { courtName: string; startsAt: string; cancelCode: st
 
 // Court, start and cancel code for a booking id, or null if there is none.
 export async function getConfirmation(id: string): Promise<Confirmation | null> {
+  const supabase = await supabaseServer();
   const { data, error } = await supabase.rpc("confirmation", { p_id: id });
   if (error) throw new Error(error.message);
   const row = (data as { court_name: string; starts_at: string; cancel_code: string }[])[0];
   return row ? { courtName: row.court_name, startsAt: row.starts_at, cancelCode: row.cancel_code } : null;
+}
+
+export type MyBooking = { id: string; courtName: string; startsAt: string; cancelCode: string };
+
+// The logged-in user's bookings: upcoming ones (not started, can still be
+// cancelled) soonest first, and the last 10 past ones, latest first.
+export async function myBookings(): Promise<{ upcoming: MyBooking[]; past: MyBooking[] }> {
+  const user = await currentUser();
+  if (!user) throw new Error("Please log in to see your bookings.");
+  const supabase = await supabaseServer();
+  // RLS lets staff see every booking, so ask for this user's rows only.
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id, starts_at, cancel_code, courts(name)")
+    .eq("user_id", user.id)
+    .order("starts_at");
+  if (error) throw new Error(error.message);
+
+  const rows = (
+    data as unknown as { id: string; starts_at: string; cancel_code: string; courts: { name: string } }[]
+  ).map((row) => ({
+    id: row.id,
+    courtName: row.courts.name,
+    startsAt: row.starts_at,
+    cancelCode: row.cancel_code,
+  }));
+  const now = Date.now();
+  return {
+    upcoming: rows.filter((row) => Date.parse(row.startsAt) > now),
+    past: rows.filter((row) => Date.parse(row.startsAt) <= now).reverse().slice(0, 10),
+  };
+}
+
+// Cancels (deletes) a booking. RLS allows your own booking before it starts,
+// or any booking for staff. If the database deletes nothing, says so.
+export async function cancelBooking(id: string): Promise<void> {
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase.from("bookings").delete().eq("id", id).select("id");
+  if (error) throw new Error(error.message);
+  if (data.length === 0) throw new Error("This booking has already started or isn't yours.");
 }
 
 // How a start time reads in Milan: its date (YYYY-MM-DD), day, start and end.

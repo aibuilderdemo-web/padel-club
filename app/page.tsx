@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { currentUser } from "@/lib/auth";
 import { bookableDays, getFreeSlots, type CourtSlots } from "@/lib/booking";
 
 export default function Home({ searchParams }: PageProps<"/">) {
@@ -15,7 +16,16 @@ export default function Home({ searchParams }: PageProps<"/">) {
 
 async function DayView({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
   const { day } = await searchParams;
-  const days = await bookableDays();
+  let days, user;
+  try {
+    [days, user] = await Promise.all([bookableDays(), currentUser()]);
+  } catch (error) {
+    return (
+      <p role="alert" className="mt-6 rounded border border-red-300 bg-red-50 p-4 text-red-800">
+        Could not load the days: {(error as Error).message}
+      </p>
+    );
+  }
   const selected = days.find((d) => d.date === day) ?? days[0];
   const result = await getFreeSlots(selected.date).then(
     (courts) => ({ courts, error: null }),
@@ -43,6 +53,15 @@ async function DayView({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
           ))}
         </ul>
       </nav>
+
+      {!user && (
+        <p className="mt-2 text-zinc-700">
+          <Link href="/login" className="text-club underline">
+            Log in
+          </Link>{" "}
+          to book up to 7 days ahead.
+        </p>
+      )}
 
       {result.error && (
         <p role="alert" className="mt-6 rounded border border-red-300 bg-red-50 p-4 text-red-800">

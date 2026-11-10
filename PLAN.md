@@ -61,6 +61,27 @@ Checks:
 - A wrong code shows an error. Nothing changes.
 - A code for a booking that has already started is refused.
 
+## [x] 6. Accounts: sign-up, log-in, My bookings, RLS
+Done: profiles + sign-up trigger, roles, 2/7-day window in book() and free_slots, RLS from PERMISSIONS.md, /signup, /login, /auth/confirm, /my-bookings with cancel; left: your check against Supabase and the two dashboard settings, the staff page (slice 4) and guest cancel by code (slice 5).
+Built before slices 4 and 5 (briefs/demo1-plan.txt). Email and password
+with Supabase Auth, email confirmation on. A profiles row (full_name, phone,
+role, default member) is made at sign-up. Bookings made while logged in are
+linked to the user. Guests book up to 2 days ahead, members 7.
+Checks:
+- I paste supabase/schema.sql into the SQL Editor and run it twice. No errors.
+- Supabase → Authentication → URL Configuration: Site URL is the app's URL.
+  Emails → Confirm signup: the link is
+  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
+- I sign up, click the email link, land on My bookings logged in. The
+  profiles table has my row with role member.
+- Logged out the home page shows today + 2 days; logged in, today + 7.
+- Logged in, the booking form has my name and phone. The booking shows in
+  My bookings and has my user_id in the Table Editor.
+- Cancel in My bookings: the row is gone, the slot is free again.
+- As a member I can't read others' bookings, can't change my role, can't
+  delete someone else's booking. Staff see every booking. Only an admin can
+  call set_role.
+
 ## Open questions (ask before the slice)
 - Slice 2: are bookings written by a database function called with the
   publishable key (rules stay in the database), or by the server with the

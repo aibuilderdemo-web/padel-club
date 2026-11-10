@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
+import { currentUser } from "@/lib/auth";
 import { book, getCourt, slotTime } from "@/lib/booking";
 import { BookForm, type BookState } from "./form";
 
@@ -36,7 +37,7 @@ async function BookView({ searchParams }: Pick<PageProps<"/book">, "searchParams
   if (!Number.isInteger(courtId) || typeof at !== "string" || Number.isNaN(Date.parse(at))) {
     notFound();
   }
-  const court = await getCourt(courtId);
+  const [court, user] = await Promise.all([getCourt(courtId), currentUser()]);
   if (!court) notFound();
   const slot = slotTime(at);
 
@@ -49,7 +50,13 @@ async function BookView({ searchParams }: Pick<PageProps<"/book">, "searchParams
       <p className="mt-2 text-lg">
         {slot.day}, {slot.time} to {slot.endTime}
       </p>
-      <BookForm action={bookSlot} courtId={court.id} startsAt={at} />
+      <BookForm
+        action={bookSlot}
+        courtId={court.id}
+        startsAt={at}
+        name={user?.profile?.fullName ?? ""}
+        phone={user?.profile?.phone ?? ""}
+      />
     </div>
   );
 }

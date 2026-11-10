@@ -24,6 +24,137 @@ create policy "Anyone can read courts"
   to anon, authenticated
   using (true);
 
+-- Profiles and roles ------------------------------------------------------
+-- One row per account, made by a trigger at sign-up. Roles from
+-- PERMISSIONS.md: member (default), staff, admin. A guest has no profile.
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  full_name text not null,
+  phone text not null,
+  role text not null default 'member',
+  created_at timestamptz not null default now(),
+
+  constraint profiles_role_known
+    check (role in ('member', 'staff', 'admin')),
+  constraint profiles_full_name_not_blank
+    check (btrim(full_name) <> ''),
+  constraint profiles_phone_not_blank
+    check (btrim(phone) <> '')
+);
+
+alter table public.profiles enable row level security;
+
+-- Users can change only their name and phone. The role column can't be
+-- written from the client at all; only set_role() changes it.
+revoke all on public.profiles from anon, authenticated;
+grant select on public.profiles to authenticated;
+grant update (full_name, phone) on public.profiles to authenticated;
+
+-- Makes the profile when someone signs up. Name and phone come from the
+-- sign-up form; the role is always the default, whatever the form sends.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.profiles (id, full_name, phone)
+  values (
+    new.id,
+    btrim(coalesce(new.raw_user_meta_data ->> 'full_name', '')),
+    btrim(coalesce(new.raw_user_meta_data ->> 'phone', ''))
+  );
+  return new;
+end;
+$$;
+
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- The logged-in user's role, or null for a guest. Security definer so
+-- policies can call it without going through the profiles policies again.
+create or replace function public.my_role()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select role from public.profiles where id = auth.uid();
+$$;
+
+revoke execute on function public.my_role() from public, anon, authenticated;
+grant execute on function public.my_role() to anon, authenticated;
+
+-- How many days after today someone may book: 2 for a guest, 7 when
+-- logged in (PERMISSIONS.md). book() and free_slots() both use it.
+create or replace function public.booking_days_ahead()
+returns integer
+language sql
+stable
+set search_path = ''
+as $$
+  select case when auth.uid() is null then 2 else 7 end;
+$$;
+
+revoke execute on function public.booking_days_ahead() from public, anon, authenticated;
+grant execute on function public.booking_days_ahead() to anon, authenticated;
+
+-- Policy: a logged-in user can read only their own profile.
+drop policy if exists "Users read their own profile" on public.profiles;
+create policy "Users read their own profile"
+  on public.profiles for select
+  to authenticated
+  using (id = (select auth.uid()));
+
+-- Policy: an admin can read every profile, to find whose role to change.
+drop policy if exists "Admins read every profile" on public.profiles;
+create policy "Admins read every profile"
+  on public.profiles for select
+  to authenticated
+  using ((select public.my_role()) = 'admin');
+
+-- Policy: a logged-in user can update their own row; the column grants
+-- above limit that to full_name and phone.
+drop policy if exists "Users update their own name and phone" on public.profiles;
+create policy "Users update their own name and phone"
+  on public.profiles for update
+  to authenticated
+  using (id = (select auth.uid()))
+  with check (id = (select auth.uid()));
+
+-- No insert or delete policies: the trigger makes profiles, nobody removes one.
+
+-- Change someone's role: admins only. In the SQL Editor (no logged-in user)
+-- this refuses too; make the first admin with a plain UPDATE there.
+create or replace function public.set_role(p_user_id uuid, p_role text)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if public.my_role() is distinct from 'admin' then
+    raise exception 'Only an admin can change roles.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  update public.profiles set role = p_role where id = p_user_id;
+  if not found then
+    raise exception 'There is no account with that id.';
+  end if;
+end;
+$$;
+
+revoke execute on function public.set_role(uuid, text) from public, anon, authenticated;
+grant execute on function public.set_role(uuid, text) to authenticated;
+
 -- Bookings ----------------------------------------------------------------
 create table if not exists public.bookings (
   id uuid primary key default gen_random_uuid(),
@@ -62,13 +193,51 @@ alter table public.bookings drop constraint if exists bookings_no_overlap;
 alter table public.bookings add constraint bookings_no_overlap
   exclude using gist (court_id with =, tstzrange(starts_at, ends_at) with &&);
 
--- RLS on and no policies: the public can't read or write bookings.
+-- The account that made the booking; null for a guest booking.
+alter table public.bookings
+  add column if not exists user_id uuid references auth.users (id) on delete set null;
+create index if not exists bookings_user_id_idx on public.bookings (user_id);
+
+-- RLS on. Guests can't read or write bookings at all. Logged-in users may
+-- select and delete, and the policies below pick which rows. Nobody inserts
+-- or updates directly: book() is the only way in, and it sets user_id itself.
 alter table public.bookings enable row level security;
+revoke all on public.bookings from anon, authenticated;
+grant select, delete on public.bookings to authenticated;
+
+-- Policy: a logged-in user can read their own bookings.
+drop policy if exists "Members read their own bookings" on public.bookings;
+create policy "Members read their own bookings"
+  on public.bookings for select
+  to authenticated
+  using (user_id = (select auth.uid()));
+
+-- Policy: staff and admins can read every booking, with name and phone.
+drop policy if exists "Staff read every booking" on public.bookings;
+create policy "Staff read every booking"
+  on public.bookings for select
+  to authenticated
+  using ((select public.my_role()) in ('staff', 'admin'));
+
+-- Policy: a logged-in user can cancel their own booking until it starts.
+drop policy if exists "Members cancel their own bookings before they start" on public.bookings;
+create policy "Members cancel their own bookings before they start"
+  on public.bookings for delete
+  to authenticated
+  using (user_id = (select auth.uid()) and starts_at > now());
+
+-- Policy: staff and admins can cancel any booking.
+drop policy if exists "Staff cancel any booking" on public.bookings;
+create policy "Staff cancel any booking"
+  on public.bookings for delete
+  to authenticated
+  using ((select public.my_role()) in ('staff', 'admin'));
 
 -- Free slots --------------------------------------------------------------
 -- Every start from 8:00 to 21:30 Milan time on for_day, per court, that is
 -- not past and does not overlap a booking. Returns only court and time.
--- Empty for days outside today + 13 (Milan time).
+-- Empty for days after today + booking_days_ahead() (Milan time): 2 for a
+-- guest, 7 when logged in.
 
 create or replace function public.free_slots(for_day date)
 returns table (court_id smallint, court_name text, starts_at timestamptz)
@@ -88,7 +257,7 @@ as $$
     ) as g (local_start)
   ) s
   where for_day between (now() at time zone 'Europe/Rome')::date
-                    and (now() at time zone 'Europe/Rome')::date + 13
+                    and (now() at time zone 'Europe/Rome')::date + public.booking_days_ahead()
     and s.starts_at > now()
     and not exists (
       select 1
@@ -104,9 +273,10 @@ revoke execute on function public.free_slots(date) from public;
 grant execute on function public.free_slots(date) to anon, authenticated;
 
 -- Book -------------------------------------------------------------------
--- The only way the public writes a booking. Refuses past starts and days
--- beyond today + 13 (Milan time); the table's checks do the rest.
--- Makes the 6-character cancel code and returns the new booking's id.
+-- The only way anyone writes a booking. Refuses past starts and days beyond
+-- today + booking_days_ahead() (Milan time); the table's checks do the rest.
+-- Links the booking to the logged-in user, if any. Makes the 6-character
+-- cancel code and returns the new booking's id.
 
 create or replace function public.book(
   p_court_id smallint,
@@ -138,8 +308,11 @@ begin
   if p_starts_at <= now() then
     raise exception 'That start time has already passed.';
   end if;
-  if (p_starts_at at time zone 'Europe/Rome')::date > today + 13 then
-    raise exception 'Bookings open 14 days ahead. Please pick an earlier day.';
+  if (p_starts_at at time zone 'Europe/Rome')::date > today + public.booking_days_ahead() then
+    if auth.uid() is null then
+      raise exception 'Guests can book up to 2 days ahead. Log in to book up to 7 days ahead.';
+    end if;
+    raise exception 'Members can book up to 7 days ahead. Please pick an earlier day.';
   end if;
 
   loop
@@ -151,9 +324,9 @@ begin
     end loop;
 
     begin
-      insert into public.bookings (court_id, starts_at, ends_at, guest_name, phone, cancel_code)
+      insert into public.bookings (court_id, starts_at, ends_at, guest_name, phone, cancel_code, user_id)
       values (p_court_id, p_starts_at, p_starts_at + interval '90 minutes',
-              btrim(p_guest_name), btrim(p_phone), code)
+              btrim(p_guest_name), btrim(p_phone), code, auth.uid())
       returning id into new_id;
       return new_id;
     exception

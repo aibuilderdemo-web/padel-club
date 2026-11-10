@@ -5,7 +5,8 @@ Bookings come by WhatsApp and phone. Courts get double booked, and the owner
 answers messages at night.
 
 ## Users
-Guests (no account), members and staff. Members and login: day 17.
+Guests (no account), members, staff and admins. Who may do what:
+PERMISSIONS.md. Members sign up with email and password.
 
 ## User stories
 - As a guest, I want to see which courts are free on Saturday, so that I can book one.
@@ -24,7 +25,9 @@ Home with today's courts, booking page, confirmation, staff view.
 - It must not look like: a bank, a template, a startup page with gradients.
 
 ## Data
-courts (name), bookings (court, start time, guest name, phone, cancel code)
+courts (name), bookings (court, start time, guest name, phone, cancel code,
+user if logged in), profiles (full name, phone, role: member, staff or admin;
+made at sign-up, default member)
 
 Four courts: Court 1, Court 2, Court 3, Court 4.
 
@@ -33,7 +36,10 @@ Four courts: Court 1, Court 2, Court 3, Court 4.
 - Two bookings on the same court can't overlap. A booking at 18:00 blocks
   starts from 17:00 to 19:00 on that court. The database enforces this.
 - The club closes at 23:00, Milan time. Starts run from 8:00 to 21:30.
-- Bookings open 14 days ahead. Nobody can book in the past.
+- Guests book up to 2 days ahead (today + 2), members up to 7 (today + 7),
+  Milan time. Nobody can book in the past. The database enforces this.
+- A member sees their bookings on My bookings and can cancel one until it
+  starts.
 - A guest cancels with the code shown on the confirmation page.
 - The public sees only court and start time. Names, phones and cancel codes
   stay on the server (RLS blocks public reads of bookings). The staff view runs
@@ -44,11 +50,13 @@ Four courts: Court 1, Court 2, Court 3, Court 4.
 ## Decisions
 - Photos: none yet. Each court shows a plain grey block with its name; real photos come later in public/courts/.
 - SQL: one file, supabase/schema.sql, that I paste into the Supabase SQL Editor. No migrations tool, no CLI.
-- 14 days: today plus the next 13 days, counted in Milan time.
+- Booking window: PERMISSIONS.md wins over the old 14 days for everyone.
+- Sign-up needs email confirmation (link to /auth/confirm).
+- A member's booking form is prefilled from their profile and can be edited.
 - Language: the whole site is in English.
 
 ## Out of scope
-Payments (day 19), login (day 17), tournaments, coaching, an app store app.
+Payments (day 19), tournaments, coaching, an app store app.
 
 ## Acceptance checks
 - I open tomorrow. I see 4 courts and their free slots.

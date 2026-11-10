@@ -8,12 +8,16 @@ export function BookForm({
   action,
   courtId,
   startsAt,
+  name,
+  phone,
 }: {
   action: (state: BookState, form: FormData) => Promise<BookState>;
   courtId: number;
   startsAt: string;
+  name: string; // prefilled from the profile when logged in
+  phone: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, { error: null, name: "", phone: "" });
+  const [state, formAction, pending] = useActionState(action, { error: null, name, phone });
 
   return (
     <form action={formAction} className="mt-6 flex flex-col gap-4">

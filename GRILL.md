@@ -22,3 +22,24 @@ key behind one shared password until day 17.
 - Guests can cancel with a code from the confirmation.
 - Bookings open 14 days ahead, none in the past.
 - Four courts, Court 1 to Court 4.
+
+## Accounts slice (briefs/demo1-plan.txt), 2026-11-10
+
+**Q: PERMISSIONS.md says guests book up to 2 days ahead and members 7;
+SPEC.md said 14 for everyone. Which does book() enforce?**
+Recommended: PERMISSIONS.md, the newer document.
+**A:** PERMISSIONS.md: 2 for guests, 7 for members.
+
+**Q: Members may cancel their own booking. Add a Cancel button to My
+bookings now, before slice 5?** Recommended: yes, delete own booking before
+it starts; guest cancel by code stays in slice 5.
+**A:** Yes, delete own.
+
+**Q: Keep Supabase's email confirmation at sign-up?** Recommended: keep it
+on, with an /auth/confirm route.
+**A:** Keep it on.
+
+**Q: Where do name and phone on a member's booking come from?**
+Recommended: prefilled from the profile, editable; every booking still gets
+a cancel code.
+**A:** Prefilled from the profile.
