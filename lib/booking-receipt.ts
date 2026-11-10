@@ -20,5 +20,5 @@ export async function sendBookingReceipt(r: Receipt) {
     subject: `Booking receipt: court ${r.courtId}, ${when}`,
     text: `Hi ${r.name},\n\nYour booking is confirmed.\n\nCourt ${r.courtId}\n${when}\nReference: ${r.reference}\n`,
   });
-  if (error) console.error("[Resend API Error]:", error);
+  if (error) console.error(`[Resend API Error]: ${error.name}: ${error.message}`);
 }
