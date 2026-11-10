@@ -94,3 +94,90 @@ $$;
 
 revoke execute on function public.free_slots(date) from public;
 grant execute on function public.free_slots(date) to anon, authenticated;
+
+-- Book -------------------------------------------------------------------
+-- The only way the public writes a booking. Refuses past starts and days
+-- beyond today + 13 (Milan time); the table's checks do the rest.
+-- Makes the 6-character cancel code and returns the new booking's id.
+
+create or replace function public.book(
+  p_court_id smallint,
+  p_starts_at timestamptz,
+  p_guest_name text,
+  p_phone text
+)
+returns uuid
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  -- No 0/O or 1/I, so the code is easy to read back.
+  alphabet constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  today date := (now() at time zone 'Europe/Rome')::date;
+  random_bytes bytea;
+  code text;
+  clash text;
+  new_id uuid;
+begin
+  if coalesce(btrim(p_guest_name), '') = '' then
+    raise exception 'Please enter your name.';
+  end if;
+  if coalesce(btrim(p_phone), '') = '' then
+    raise exception 'Please enter your phone number.';
+  end if;
+  if p_starts_at <= now() then
+    raise exception 'That start time has already passed.';
+  end if;
+  if (p_starts_at at time zone 'Europe/Rome')::date > today + 13 then
+    raise exception 'Bookings open 14 days ahead. Please pick an earlier day.';
+  end if;
+
+  loop
+    -- Bytes 0-5 of a v4 uuid are random.
+    random_bytes := uuid_send(gen_random_uuid());
+    code := '';
+    for i in 0..5 loop
+      code := code || substr(alphabet, get_byte(random_bytes, i) % 32 + 1, 1);
+    end loop;
+
+    begin
+      insert into public.bookings (court_id, starts_at, ends_at, guest_name, phone, cancel_code)
+      values (p_court_id, p_starts_at, p_starts_at + interval '90 minutes',
+              btrim(p_guest_name), btrim(p_phone), code)
+      returning id into new_id;
+      return new_id;
+    exception when unique_violation then
+      -- Only a cancel code clash is retried; anything else goes to the page.
+      get stacked diagnostics clash = constraint_name;
+      if clash <> 'bookings_cancel_code_key' then
+        raise;
+      end if;
+    end;
+  end loop;
+end;
+$$;
+
+revoke execute on function public.book(smallint, timestamptz, text, text) from public;
+grant execute on function public.book(smallint, timestamptz, text, text) to anon, authenticated;
+
+-- Confirmation ------------------------------------------------------------
+-- Court, start and cancel code for one booking, by its id (a random uuid).
+-- Never returns the guest's name or phone.
+
+create or replace function public.confirmation(p_id uuid)
+returns table (court_name text, starts_at timestamptz, cancel_code text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select c.name, b.starts_at, b.cancel_code
+  from public.bookings b
+  join public.courts c on c.id = b.court_id
+  where b.id = p_id;
+$$;
+
+revoke execute on function public.confirmation(uuid) from public;
+grant execute on function public.confirmation(uuid) to anon, authenticated;

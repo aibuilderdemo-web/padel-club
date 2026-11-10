@@ -61,11 +61,14 @@ async function DayView({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
             ) : (
               <ul className="mt-3 flex flex-wrap gap-2" aria-label={`Free times on ${court.name}`}>
                 {court.slots.map((slot) => (
-                  <li
-                    key={slot.startsAt}
-                    className="rounded border border-zinc-300 px-3 py-2 tabular-nums"
-                  >
-                    {slot.time}
+                  <li key={slot.startsAt}>
+                    <Link
+                      href={`/book?court=${court.id}&at=${encodeURIComponent(slot.startsAt)}`}
+                      aria-label={`Book ${court.name} at ${slot.time}`}
+                      className="flex min-h-11 items-center rounded border border-club px-3 font-medium tabular-nums text-club hover:bg-club hover:text-white"
+                    >
+                      {slot.time}
+                    </Link>
                   </li>
                 ))}
               </ul>

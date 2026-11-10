@@ -23,7 +23,8 @@ Checks:
   stops that.
 - With the publishable key I cannot read the bookings table.
 
-## [ ] 2. Book a slot as a guest (name, phone)
+## [x] 2. Book a slot as a guest (name, phone)
+Done: book() and confirmation() in the database, booking page, confirmation with code; left: your check against Supabase, and task 3 still allows double booking.
 Tap a free time, enter name and phone, get a confirmation page with court,
 day, time and a 6-character cancel code.
 Checks:
