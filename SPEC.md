@@ -69,7 +69,10 @@ Four courts: Court 1, Court 2, Court 3, Court 4.
   switches the membership on, the webhook sends one welcome email with
   Resend (RESEND_API_KEY, from onboarding@resend.dev until the club has a
   domain): what members get, amount paid, date, invoice link, how to cancel.
-  A failed email is logged and doesn't fail the webhook.
+  A failed email is logged and doesn't fail the webhook. Then it POSTs
+  {firstName, email, plan: "monthly"} to n8n (N8N_NEW_MEMBER_URL, header
+  x-webhook-secret = N8N_WEBHOOK_SECRET), waiting at most 5 seconds; a
+  failure is logged and doesn't fail the webhook.
 
 ## Out of scope
 Payments for bookings, tournaments, coaching, an app store app.

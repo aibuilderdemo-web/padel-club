@@ -132,30 +132,34 @@ export async function handleStripeWebhook(
   if (!applied) return "duplicate, skipped";
 
   // Only for the checkout that switched the membership on, and only once:
-  // a resent event stops at "duplicate" above. A failed email is logged and
-  // never fails the webhook, or Stripe would resend and the email go twice.
+  // a resent event stops at "duplicate" above. First the welcome email, then
+  // n8n. Each failure is logged and never fails the webhook, or Stripe would
+  // resend and both would go twice.
   let note = "";
   if (event.type === "checkout.session.completed" && ACTIVE_STATUSES.includes(subscription.status)) {
-    note = await sendWelcomeEmail(userId, subscription, origin).then(
-      () => ", welcome email sent",
-      (error: Error) => {
-        console.error(`Welcome email for user ${userId} (Stripe event ${event.id}) failed:`, error.message);
-        return `, welcome email failed: ${error.message}`;
-      },
-    );
+    const member = newMemberContact(userId);
+    member.catch(() => {}); // Reported by the steps below, not as unhandled.
+    const step = (name: string, work: Promise<void>) =>
+      work.then(
+        () => `, ${name} sent`,
+        (error: Error) => {
+          console.error(`${name} for user ${userId} (Stripe event ${event.id}) failed:`, error.message);
+          return `, ${name} failed: ${error.message}`;
+        },
+      );
+    note += await step("welcome email", sendWelcomeEmail(member, subscription, origin));
+    note += await step("n8n new member", notifyN8nNewMember(member));
   }
   return `applied ${event.type}: ${subscription.status}${note}`;
 }
 
 const ACTIVE_STATUSES: Stripe.Subscription.Status[] = ["active", "trialing"];
 
-// The welcome email, sent with Resend (RESEND_API_KEY) to the account's email:
-// what members get, the amount paid, the date, Stripe's invoice link and how
-// to cancel. HTML and plain text. Throws on any failure; the caller logs it.
-async function sendWelcomeEmail(userId: string, subscription: Stripe.Subscription, origin: string): Promise<void> {
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) throw new Error("RESEND_API_KEY is not set on the server.");
+type MemberContact = { email: string; firstName: string };
 
+// The new member's account email and first name (first word of the profile
+// name, "" if none), read with the secret key.
+async function newMemberContact(userId: string): Promise<MemberContact> {
   const admin = adminClient();
   const [account, profile] = await Promise.all([
     admin.auth.admin.getUserById(userId),
@@ -163,9 +167,52 @@ async function sendWelcomeEmail(userId: string, subscription: Stripe.Subscriptio
   ]);
   if (account.error) throw new Error(account.error.message);
   if (profile.error) throw new Error(profile.error.message);
-  const to = account.data.user?.email;
-  if (!to) throw new Error("The account has no email address.");
-  const firstName = (profile.data?.full_name ?? "").trim().split(/\s+/)[0] || "there";
+  const email = account.data.user?.email;
+  if (!email) throw new Error("The account has no email address.");
+  return { email, firstName: (profile.data?.full_name ?? "").trim().split(/\s+/)[0] ?? "" };
+}
+
+// Tells n8n about the new member: POST to N8N_NEW_MEMBER_URL with the
+// x-webhook-secret header from N8N_WEBHOOK_SECRET. Gives up after 5 seconds.
+// Throws on any failure; the caller logs it.
+async function notifyN8nNewMember(memberPromise: Promise<MemberContact>): Promise<void> {
+  const url = process.env.N8N_NEW_MEMBER_URL;
+  const secret = process.env.N8N_WEBHOOK_SECRET;
+  if (!url) throw new Error("N8N_NEW_MEMBER_URL is not set on the server.");
+  if (!secret) throw new Error("N8N_WEBHOOK_SECRET is not set on the server.");
+  const member = await memberPromise;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-webhook-secret": secret },
+      body: JSON.stringify({ firstName: member.firstName, email: member.email, plan: "monthly" }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (error) {
+    if ((error as Error).name === "TimeoutError") throw new Error("n8n did not answer within 5 seconds.");
+    throw error;
+  }
+  if (!response.ok) {
+    throw new Error(`n8n answered ${response.status}: ${(await response.text()).slice(0, 200)}`);
+  }
+}
+
+// The welcome email, sent with Resend (RESEND_API_KEY) to the account's email:
+// what members get, the amount paid, the date, Stripe's invoice link and how
+// to cancel. HTML and plain text. Throws on any failure; the caller logs it.
+async function sendWelcomeEmail(
+  memberPromise: Promise<MemberContact>,
+  subscription: Stripe.Subscription,
+  origin: string,
+): Promise<void> {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) throw new Error("RESEND_API_KEY is not set on the server.");
+
+  const member = await memberPromise;
+  const to = member.email;
+  const firstName = member.firstName || "there";
 
   const invoiceId =
     typeof subscription.latest_invoice === "string" ? subscription.latest_invoice : subscription.latest_invoice?.id;

@@ -189,6 +189,23 @@ Checks:
 - Phone size: open the email on a phone. One column, readable without
   zooming, green links.
 
+## [x] 13. Tell n8n about each new member
+Done (briefs/n8n-prompt.txt): after the welcome email (sent or not), the webhook POSTs {"firstName","email","plan":"monthly"} to N8N_NEW_MEMBER_URL with header x-webhook-secret = N8N_WEBHOOK_SECRET, 5-second timeout; failures are logged and noted in the webhook response, never a 500; left: your check with a real n8n workflow.
+Checks:
+- .env.local and Vercel have N8N_NEW_MEMBER_URL (the n8n Webhook node's
+  URL, POST) and N8N_WEBHOOK_SECRET. Restart npm run dev.
+- In n8n, the Webhook node checks the x-webhook-secret header (Header Auth
+  credential with that name and value).
+- With stripe listen running, I pay with 4242 4242 4242 4242. The response
+  ends ", welcome email sent, n8n new member sent". The n8n execution shows
+  firstName, email and plan "monthly".
+- `stripe events resend evt_…`: "duplicate, skipped", no second n8n call.
+- With the n8n workflow off (404) or a wrong secret (403): still 200, the
+  response ends ", n8n new member failed: n8n answered …", the same line is
+  in the server log, and the membership is active.
+- With the URL pointing at something that doesn't answer: the webhook
+  finishes after about 5 seconds with "n8n did not answer within 5 seconds."
+
 ## Open questions (ask before the slice)
 - Slice 2: are bookings written by a database function called with the
   publishable key (rules stay in the database), or by the server with the
