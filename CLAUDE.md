@@ -9,6 +9,8 @@ Spec: SPEC.md. Plan: PLAN.md.
 - Rules that protect data go in the database (constraints, RLS),
   not only in the page.
 - Show errors from Supabase on the page, never hide them.
+- Every page and server action checks the user's role on the server.
+  Never rely on hiding links.
 
 ## How we work
 
