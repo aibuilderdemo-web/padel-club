@@ -8,7 +8,11 @@ export async function POST(request: Request) {
   // The raw body, unparsed: the signature is over these exact bytes.
   const rawBody = await request.text();
   try {
-    const result = await handleStripeWebhook(rawBody, request.headers.get("stripe-signature"));
+    const result = await handleStripeWebhook(
+      rawBody,
+      request.headers.get("stripe-signature"),
+      new URL(request.url).origin,
+    );
     return Response.json({ received: true, result });
   } catch (error) {
     const message = (error as Error).message;

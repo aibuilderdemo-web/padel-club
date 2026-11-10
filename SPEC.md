@@ -65,7 +65,11 @@ Four courts: Court 1, Court 2, Court 3, Court 4.
   or canceled are not. The success page only says the membership will be
   active in a moment. Active members see "You are a member" instead of the
   button and book 7 days ahead. Their "Manage membership" button opens
-  Stripe's customer portal for their saved customer id.
+  Stripe's customer portal for their saved customer id. When a checkout
+  switches the membership on, the webhook sends one welcome email with
+  Resend (RESEND_API_KEY, from onboarding@resend.dev until the club has a
+  domain): what members get, amount paid, date, invoice link, how to cancel.
+  A failed email is logged and doesn't fail the webhook.
 
 ## Out of scope
 Payments for bookings, tournaments, coaching, an app store app.

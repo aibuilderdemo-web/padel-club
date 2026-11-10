@@ -170,6 +170,25 @@ Checks:
   shows "Only members with an active membership can manage it."
 - With the portal settings not saved, Stripe's error shows under the button.
 
+## [x] 12. Welcome email after the membership is switched on
+Done (briefs/email-prompt.txt): when the webhook first applies checkout.session.completed with status active/trialing, lib/membership.ts sends a Resend email (REST API, no new package) from onboarding@resend.dev to the account's email: "Welcome to the club, {first name}", what members get, amount paid, date (Milan), Stripe invoice link, how to cancel; HTML and plain text; a failure is logged and noted in the webhook response, never a 500; left: your check with a Resend key, and a verified domain before real members get it.
+Checks:
+- .env.local and Vercel have RESEND_API_KEY (re_…). Restart npm run dev.
+- Note: with onboarding@resend.dev, Resend only delivers to the email of
+  your own Resend account. Sign up in the app with that address to test.
+- With stripe listen running, I pay with 4242 4242 4242 4242. The stripe
+  listen window shows 200 and the response ends ", welcome email sent".
+  The email arrives: subject "Welcome to the club, {first name}", the
+  amount and today's date, a working invoice link, and a My bookings link.
+- The plain-text version (Gmail → Show original) has the same content.
+- `stripe events resend evt_…` for the checkout event: "duplicate, skipped",
+  no second email.
+- With RESEND_API_KEY wrong: still 200, the response ends ", welcome email
+  failed: Resend answered 401 …", the same line is in the server log, and
+  the membership is active.
+- Phone size: open the email on a phone. One column, readable without
+  zooming, green links.
+
 ## Open questions (ask before the slice)
 - Slice 2: are bookings written by a database function called with the
   publishable key (rules stay in the database), or by the server with the

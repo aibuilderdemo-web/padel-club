@@ -72,8 +72,14 @@ const HANDLED_EVENTS = new Set([
 // Handles one call to /api/stripe/webhook. Checks the signature with
 // STRIPE_WEBHOOK_SECRET, then saves the user's membership status and Stripe
 // ids. Each event is applied once; a resent one changes nothing. Returns a
-// short note for Stripe's dashboard.
-export async function handleStripeWebhook(rawBody: string, signature: string | null): Promise<string> {
+// short note for Stripe's dashboard. When a checkout switches a membership
+// on, it also sends the welcome email. origin is this site's address, for the
+// link in that email.
+export async function handleStripeWebhook(
+  rawBody: string,
+  signature: string | null,
+  origin: string,
+): Promise<string> {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET is not set on the server.");
   const { stripe } = stripeConfig();
@@ -123,7 +129,109 @@ export async function handleStripeWebhook(rawBody: string, signature: string | n
     p_status: subscription.status,
   });
   if (error) throw new Error(error.message);
-  return applied ? `applied ${event.type}: ${subscription.status}` : "duplicate, skipped";
+  if (!applied) return "duplicate, skipped";
+
+  // Only for the checkout that switched the membership on, and only once:
+  // a resent event stops at "duplicate" above. A failed email is logged and
+  // never fails the webhook, or Stripe would resend and the email go twice.
+  let note = "";
+  if (event.type === "checkout.session.completed" && ACTIVE_STATUSES.includes(subscription.status)) {
+    note = await sendWelcomeEmail(userId, subscription, origin).then(
+      () => ", welcome email sent",
+      (error: Error) => {
+        console.error(`Welcome email for user ${userId} (Stripe event ${event.id}) failed:`, error.message);
+        return `, welcome email failed: ${error.message}`;
+      },
+    );
+  }
+  return `applied ${event.type}: ${subscription.status}${note}`;
+}
+
+const ACTIVE_STATUSES: Stripe.Subscription.Status[] = ["active", "trialing"];
+
+// The welcome email, sent with Resend (RESEND_API_KEY) to the account's email:
+// what members get, the amount paid, the date, Stripe's invoice link and how
+// to cancel. HTML and plain text. Throws on any failure; the caller logs it.
+async function sendWelcomeEmail(userId: string, subscription: Stripe.Subscription, origin: string): Promise<void> {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) throw new Error("RESEND_API_KEY is not set on the server.");
+
+  const admin = adminClient();
+  const [account, profile] = await Promise.all([
+    admin.auth.admin.getUserById(userId),
+    admin.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+  ]);
+  if (account.error) throw new Error(account.error.message);
+  if (profile.error) throw new Error(profile.error.message);
+  const to = account.data.user?.email;
+  if (!to) throw new Error("The account has no email address.");
+  const firstName = (profile.data?.full_name ?? "").trim().split(/\s+/)[0] || "there";
+
+  const invoiceId =
+    typeof subscription.latest_invoice === "string" ? subscription.latest_invoice : subscription.latest_invoice?.id;
+  if (!invoiceId) throw new Error("Stripe returned no invoice for the subscription.");
+  const invoice = await stripeConfig().stripe.invoices.retrieve(invoiceId);
+
+  const amount = new Intl.NumberFormat("en-GB", { style: "currency", currency: invoice.currency.toUpperCase() }).format(
+    invoice.amount_paid / 100,
+  );
+  const paidAt = new Date((invoice.status_transitions?.paid_at ?? invoice.created) * 1000);
+  const date = paidAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Rome" });
+  const invoiceUrl = invoice.hosted_invoice_url ?? null;
+  const myBookingsUrl = `${origin}/my-bookings`;
+
+  const subject = `Welcome to the club, ${firstName}`;
+  const text = [
+    `Hello ${firstName},`,
+    "",
+    "Welcome to Padel Club Navigli. Your membership is active.",
+    "",
+    "What members get:",
+    "- Book any of our 4 courts up to 7 days ahead (guests: 2 days).",
+    "- All your bookings in one place on My bookings, where you can cancel them.",
+    "",
+    `Amount paid: ${amount}`,
+    `Date: ${date}`,
+    invoiceUrl ? `Invoice: ${invoiceUrl}` : "Invoice: in the Stripe portal (see below).",
+    "",
+    "How to cancel: log in, open My bookings, press \"Manage membership\" and cancel on the Stripe page.",
+    myBookingsUrl,
+    "",
+    "See you on court,",
+    "Padel Club Navigli",
+  ].join("\n");
+
+  const e = escapeHtml;
+  const html = `<!doctype html>
+<html lang="en"><body style="margin:0;padding:24px 16px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5;color:#18181b;background:#ffffff">
+<div style="max-width:520px;margin:0 auto">
+<h1 style="font-size:24px;margin:0 0 16px">Welcome to the club, ${e(firstName)}</h1>
+<p>Welcome to Padel Club Navigli. Your membership is active.</p>
+<h2 style="font-size:18px;margin:24px 0 8px">What members get</h2>
+<ul style="padding-left:20px;margin:0">
+<li>Book any of our 4 courts up to 7 days ahead (guests: 2 days).</li>
+<li>All your bookings in one place on My bookings, where you can cancel them.</li>
+</ul>
+<h2 style="font-size:18px;margin:24px 0 8px">Your payment</h2>
+<p style="margin:0">Amount paid: <strong>${e(amount)}</strong><br>Date: ${e(date)}</p>
+${invoiceUrl ? `<p><a href="${e(invoiceUrl)}" style="color:#1f6f3a">View your invoice</a></p>` : ""}
+<h2 style="font-size:18px;margin:24px 0 8px">How to cancel</h2>
+<p style="margin:0">Log in, open <a href="${e(myBookingsUrl)}" style="color:#1f6f3a">My bookings</a>, press "Manage membership" and cancel on the Stripe page.</p>
+<p style="margin-top:24px">See you on court,<br>Padel Club Navigli</p>
+</div></body></html>`;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: "Padel Club Navigli <onboarding@resend.dev>", to: [to], subject, html, text }),
+  });
+  if (!response.ok) {
+    throw new Error(`Resend answered ${response.status}: ${await response.text()}`);
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
 // Supabase with the secret key: skips RLS. Used only above, after Stripe's
