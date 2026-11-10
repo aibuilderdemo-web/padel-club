@@ -92,20 +92,6 @@ $$;
 revoke execute on function public.my_role() from public, anon, authenticated;
 grant execute on function public.my_role() to anon, authenticated;
 
--- How many days after today someone may book: 2 for a guest, 7 when
--- logged in (PERMISSIONS.md). book() and free_slots() both use it.
-create or replace function public.booking_days_ahead()
-returns integer
-language sql
-stable
-set search_path = ''
-as $$
-  select case when auth.uid() is null then 2 else 7 end;
-$$;
-
-revoke execute on function public.booking_days_ahead() from public, anon, authenticated;
-grant execute on function public.booking_days_ahead() to anon, authenticated;
-
 -- Policy: a logged-in user can read only their own profile.
 drop policy if exists "Users read their own profile" on public.profiles;
 create policy "Users read their own profile"
@@ -130,6 +116,114 @@ create policy "Users update their own name and phone"
   with check (id = (select auth.uid()));
 
 -- No insert or delete policies: the trigger makes profiles, nobody removes one.
+
+-- Paid membership (Stripe subscription), separate from the role. Only the
+-- Stripe webhook writes these, through apply_stripe_event() below: the
+-- column grants above give users no way to write them.
+-- membership_status is Stripe's subscription status; null = never paid.
+-- Active means 'active' or 'trialing'.
+alter table public.profiles add column if not exists stripe_customer_id text;
+alter table public.profiles add column if not exists stripe_subscription_id text;
+alter table public.profiles add column if not exists membership_status text;
+
+-- Slice 9 kept a paid_member flag; the status replaces it.
+alter table public.profiles drop constraint if exists profiles_paid_member_has_subscription;
+alter table public.profiles drop column if exists paid_member;
+
+alter table public.profiles drop constraint if exists profiles_membership_status_known;
+alter table public.profiles add constraint profiles_membership_status_known
+  check (membership_status in ('active', 'trialing', 'past_due', 'unpaid', 'canceled',
+                               'incomplete', 'incomplete_expired', 'paused'));
+alter table public.profiles drop constraint if exists profiles_membership_status_has_subscription;
+alter table public.profiles add constraint profiles_membership_status_has_subscription
+  check (membership_status is null or stripe_subscription_id is not null);
+
+create unique index if not exists profiles_stripe_subscription_id_key
+  on public.profiles (stripe_subscription_id);
+
+-- Stripe events already handled, so a resent event changes nothing twice.
+-- Nobody reads or writes it from the browser.
+create table if not exists public.stripe_events (
+  id text primary key,
+  type text not null,
+  processed_at timestamptz not null default now()
+);
+
+alter table public.stripe_events enable row level security;
+revoke all on public.stripe_events from anon, authenticated;
+
+-- Applies one verified Stripe event, once. Called only by the webhook on the
+-- server with the secret key. Returns false for an event already handled.
+-- One transaction: if the profile update fails, the event isn't recorded
+-- either, and Stripe sends it again.
+create or replace function public.apply_stripe_event(
+  p_event_id text,
+  p_event_type text,
+  p_user_id uuid,
+  p_customer_id text,
+  p_subscription_id text,
+  p_status text
+)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.stripe_events (id, type)
+  values (p_event_id, p_event_type)
+  on conflict (id) do nothing;
+  if not found then
+    return false;
+  end if;
+
+  if p_event_type = 'checkout.session.completed' then
+    update public.profiles
+    set stripe_customer_id = p_customer_id,
+        stripe_subscription_id = p_subscription_id,
+        membership_status = p_status
+    where id = p_user_id;
+    if not found then
+      raise exception 'There is no profile for user %.', p_user_id;
+    end if;
+  elsif p_event_type in ('customer.subscription.updated', 'customer.subscription.deleted') then
+    -- Only the user's current subscription: events for an older one change nothing.
+    update public.profiles
+    set membership_status = p_status
+    where id = p_user_id and stripe_subscription_id = p_subscription_id;
+  else
+    raise exception 'Unknown Stripe event type %.', p_event_type;
+  end if;
+
+  return true;
+end;
+$$;
+
+revoke execute on function public.apply_stripe_event(text, text, uuid, text, text, text)
+  from public, anon, authenticated;
+grant execute on function public.apply_stripe_event(text, text, uuid, text, text, text)
+  to service_role;
+
+-- How many days after today someone may book (PERMISSIONS.md): 7 for staff,
+-- admins, and users with an active paid membership; 2 for everyone else,
+-- guests included. book() and free_slots() both use it.
+create or replace function public.booking_days_ahead()
+returns integer
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and (p.role in ('staff', 'admin') or p.membership_status in ('active', 'trialing'))
+  ) then 7 else 2 end;
+$$;
+
+revoke execute on function public.booking_days_ahead() from public, anon, authenticated;
+grant execute on function public.booking_days_ahead() to anon, authenticated;
 
 -- Change someone's role: admins only. In the SQL Editor (no logged-in user)
 -- this refuses too; make the first admin with a plain UPDATE there.
@@ -236,8 +330,8 @@ create policy "Staff cancel any booking"
 -- Free slots --------------------------------------------------------------
 -- Every start from 8:00 to 21:30 Milan time on for_day, per court, that is
 -- not past and does not overlap a booking. Returns only court and time.
--- Empty for days after today + booking_days_ahead() (Milan time): 2 for a
--- guest, 7 when logged in.
+-- Empty for days after today + booking_days_ahead() (Milan time): 2, or 7
+-- for staff, admins and paid members.
 
 create or replace function public.free_slots(for_day date)
 returns table (court_id smallint, court_name text, starts_at timestamptz)
@@ -312,7 +406,10 @@ begin
     if auth.uid() is null then
       raise exception 'Guests can book up to 2 days ahead. Log in to book up to 7 days ahead.';
     end if;
-    raise exception 'Members can book up to 7 days ahead. Please pick an earlier day.';
+    if public.booking_days_ahead() = 2 then
+      raise exception 'Members with an active membership can book up to 7 days ahead. Become a member on My bookings.';
+    end if;
+    raise exception 'You can book up to 7 days ahead. Please pick an earlier day.';
   end if;
 
   loop

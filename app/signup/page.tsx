@@ -33,7 +33,7 @@ export default function SignupPage() {
   return (
     <div className="max-w-md">
       <h1 className="font-heading text-4xl font-bold">Sign up</h1>
-      <p className="mt-2 text-lg">Book up to 7 days ahead and see all your bookings in one place.</p>
+      <p className="mt-2 text-lg">See all your bookings in one place. Become a member to book up to 7 days ahead.</p>
       <SignupForm action={signUpAction} />
       <p className="mt-6">
         Already have an account?{" "}

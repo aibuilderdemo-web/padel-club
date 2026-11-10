@@ -36,8 +36,10 @@ Four courts: Court 1, Court 2, Court 3, Court 4.
 - Two bookings on the same court can't overlap. A booking at 18:00 blocks
   starts from 17:00 to 19:00 on that court. The database enforces this.
 - The club closes at 23:00, Milan time. Starts run from 8:00 to 21:30.
-- Guests book up to 2 days ahead (today + 2), members up to 7 (today + 7),
-  Milan time. Nobody can book in the past. The database enforces this.
+- Up to 7 days ahead (today + 7): members with an active paid membership,
+  staff and admins. Everyone else, guests and logged-in users without a
+  membership, books up to 2 days ahead (today + 2). Milan time. Nobody can
+  book in the past. The database enforces this.
 - A member sees their bookings on My bookings and can cancel one until it
   starts.
 - A guest cancels with the code shown on the confirmation page.
@@ -56,8 +58,13 @@ Four courts: Court 1, Court 2, Court 3, Court 4.
 - Language: the whole site is in English.
 - Paid membership: a Stripe subscription (STRIPE_PRICE_ID), separate from the
   "member" role every account gets at sign-up. Logged-in users start it with
-  "Become a member" on My bookings. Checkout only for now; paying doesn't
-  switch the membership on yet.
+  "Become a member" on My bookings. A Stripe webhook (/api/stripe/webhook,
+  signature checked with STRIPE_WEBHOOK_SECRET) saves the Stripe customer id,
+  subscription id and status in profiles. Each event is applied once
+  (stripe_events). Active means status active or trialing; past_due, unpaid
+  or canceled are not. The success page only says the membership will be
+  active in a moment. Active members see "You are a member" instead of the
+  button and book 7 days ahead.
 
 ## Out of scope
 Payments for bookings, tournaments, coaching, an app store app.

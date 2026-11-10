@@ -56,8 +56,16 @@ async function DayView({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
 
       {!user && (
         <p className="mt-2 text-zinc-700">
+          Members book up to 7 days ahead.{" "}
           <Link href="/login" className="text-club underline">
             Log in
+          </Link>
+        </p>
+      )}
+      {user && days.length <= 3 && (
+        <p className="mt-2 text-zinc-700">
+          <Link href="/my-bookings" className="text-club underline">
+            Become a member
           </Link>{" "}
           to book up to 7 days ahead.
         </p>

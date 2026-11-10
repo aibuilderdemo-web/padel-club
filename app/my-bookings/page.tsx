@@ -67,7 +67,13 @@ async function MyBookingsView() {
         </p>
       )}
 
-      <BecomeMember action={becomeMemberAction} />
+      {user.profile?.paidMember ? (
+        <p className="mt-6 rounded border border-club p-4 text-lg font-semibold text-club">
+          You are a member of the club.
+        </p>
+      ) : (
+        <BecomeMember action={becomeMemberAction} />
+      )}
 
       {result.error && (
         <p role="alert" className="mt-6 rounded border border-red-300 bg-red-50 p-4 text-red-800">

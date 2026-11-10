@@ -14,7 +14,8 @@ export type CourtSlots = { id: number; name: string; slots: Slot[] };
 // lib/auth.ts, so the database's rules and RLS decide what they may do.
 
 // Today plus the days the visitor may book ahead, Milan time. The database
-// says how many: 2 for a guest, 7 when logged in. Dates are YYYY-MM-DD.
+// says how many: 7 for paid members, staff and admins, 2 for everyone else.
+// Dates are YYYY-MM-DD.
 export async function bookableDays(): Promise<Day[]> {
   await connection(); // "today" is read per request, never prerendered
   const supabase = await supabaseServer();

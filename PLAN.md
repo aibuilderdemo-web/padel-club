@@ -112,6 +112,50 @@ Checks:
 - With STRIPE_PRICE_ID wrong, the error shows under the button.
 - The page source and network tab never contain the secret key.
 
+## [x] 9. The success page makes the user a paid member
+Done: profiles.paid_member + Stripe ids in schema.sql (users can't write them), confirmCheckout() checks the session with Stripe (this user, our price, complete and paid) and sets them with the secret key, "You are a member" on My bookings instead of the button, a second checkout refused; left: your check with Stripe test keys, and ending the membership when the subscription is cancelled or a payment fails (needs a Stripe webhook).
+Checks:
+- I paste supabase/schema.sql into the SQL Editor and run it twice. No errors.
+  profiles has paid_member (false), stripe_customer_id, stripe_subscription_id.
+- I pay with 4242 4242 4242 4242. The success page says I'm a member. In the
+  Table Editor my row has paid_member true and both Stripe ids.
+- My bookings shows "You are a member", no button.
+- Reloading the success page changes nothing and shows no error.
+- /membership/success with no session_id, or with someone else's, shows an
+  error and changes nothing.
+- From the browser with the publishable key, an update of my paid_member is
+  refused.
+Replaced by slice 10: the success page no longer switches the membership on;
+paid_member became membership_status, written by the webhook.
+
+## [x] 10. Stripe webhook switches the membership on and off
+Done (briefs/webhook-prompt.txt): /api/stripe/webhook checks the signature, handles checkout.session.completed and customer.subscription.updated/deleted, saves customer id, subscription id and status through apply_stripe_event() (one transaction, stripe_events skips duplicates); success page only says "active in a moment"; 7-day window for active/trialing members, staff and admins, 2 for everyone else; left: your check with the Stripe CLI and test keys, and the webhook endpoint in the Stripe dashboard for Vercel.
+Decisions: staff and admins keep 7 days without paying; active means Stripe
+status active or trialing (past_due ends the 7 days at once).
+Checks:
+- I paste supabase/schema.sql into the SQL Editor and run it twice. No errors.
+  profiles has membership_status and no paid_member. stripe_events exists.
+- `stripe listen --forward-to localhost:3000/api/stripe/webhook`. I put the
+  whsec_… it prints into .env.local as STRIPE_WEBHOOK_SECRET and restart
+  npm run dev.
+- Logged in without a membership: the home page shows today + 2 and
+  "Become a member". I pay with 4242 4242 4242 4242. The success page says
+  "active in a moment". The stripe listen window shows 200s. My row has
+  membership_status active and both Stripe ids. My bookings says "You are a
+  member". The home page shows today + 7.
+- `stripe events resend evt_…` for the checkout event: the response says
+  "duplicate, skipped", and stripe_events still has one row for it.
+- `curl -X POST localhost:3000/api/stripe/webhook -d '{}'` gets a 400. Nothing
+  changes.
+- I cancel the subscription in the Stripe dashboard (immediately): status
+  becomes canceled, the "Become a member" button is back, the home page shows
+  today + 2, and booking day +5 is refused with the new message.
+- A staff or admin account without a membership still sees today + 7.
+- With the publishable key, rpc('apply_stripe_event') is refused and
+  stripe_events can't be read.
+- Vercel: STRIPE_WEBHOOK_SECRET from a Stripe dashboard endpoint at
+  https://<site>/api/stripe/webhook with the three events above. Redeploy.
+
 ## Open questions (ask before the slice)
 - Slice 2: are bookings written by a database function called with the
   publishable key (rules stay in the database), or by the server with the

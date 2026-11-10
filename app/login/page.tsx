@@ -19,7 +19,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <div className="max-w-md">
       <h1 className="font-heading text-4xl font-bold">Log in</h1>
-      <p className="mt-2 text-lg">Members can book up to 7 days ahead and see their bookings.</p>
+      <p className="mt-2 text-lg">See your bookings. Members can book up to 7 days ahead.</p>
       <Suspense fallback={<p className="mt-6 text-zinc-600">Loading…</p>}>
         <LoginView searchParams={searchParams} />
       </Suspense>

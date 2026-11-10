@@ -7,7 +7,14 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { cache } from "react";
 
-export type Profile = { fullName: string; phone: string; role: "member" | "staff" | "admin" };
+export type Profile = {
+  fullName: string;
+  phone: string;
+  role: "member" | "staff" | "admin";
+  // Has an active Stripe membership (status active or trialing, set by the
+  // webhook). Separate from the role.
+  paidMember: boolean;
+};
 export type User = { id: string; email: string; profile: Profile | null };
 
 // A Supabase client that acts as the visitor: a guest, or the logged-in user.
@@ -43,7 +50,7 @@ export const currentUser = cache(async (): Promise<User | null> => {
   const id = data.claims.sub;
   const profile = await supabase
     .from("profiles")
-    .select("full_name, phone, role")
+    .select("full_name, phone, role, membership_status")
     .eq("id", id)
     .maybeSingle();
   if (profile.error) throw new Error(profile.error.message);
@@ -52,7 +59,12 @@ export const currentUser = cache(async (): Promise<User | null> => {
     id,
     email: data.claims.email ?? "",
     profile: profile.data
-      ? { fullName: profile.data.full_name, phone: profile.data.phone, role: profile.data.role }
+      ? {
+          fullName: profile.data.full_name,
+          phone: profile.data.phone,
+          role: profile.data.role,
+          paidMember: ["active", "trialing"].includes(profile.data.membership_status ?? ""),
+        }
       : null,
   };
 });
