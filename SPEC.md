@@ -11,6 +11,7 @@ Guests (no account), members and staff. Members and login: day 17.
 - As a guest, I want to see which courts are free on Saturday, so that I can book one.
 - As a guest, I want to book without an account, so that I can try the club.
 - As staff, I want all of today's bookings on one page, so that I can prepare the courts.
+- As a guest, I want to cancel with the code from my confirmation, so that I can free the court.
 
 ## Screens
 Home with today's courts, booking page, confirmation, staff view.
@@ -23,12 +24,28 @@ Home with today's courts, booking page, confirmation, staff view.
 - It must not look like: a bank, a template, a startup page with gradients.
 
 ## Data
-courts (name), bookings (court, start time, guest name, phone)
+courts (name), bookings (court, start time, guest name, phone, cancel code)
+
+Four courts: Court 1, Court 2, Court 3, Court 4.
 
 ## Rules
-- A court can be booked only once per slot.
 - A booking lasts 90 minutes and starts on the hour or half hour.
-- Slots from 8:00 to 23:00, Milan time. Nobody can book in the past.
+- Two bookings on the same court can't overlap. A booking at 18:00 blocks
+  starts from 17:00 to 19:00 on that court. The database enforces this.
+- The club closes at 23:00, Milan time. Starts run from 8:00 to 21:30.
+- Bookings open 14 days ahead. Nobody can book in the past.
+- A guest cancels with the code shown on the confirmation page.
+- The public sees only court and start time. Names, phones and cancel codes
+  stay on the server (RLS blocks public reads of bookings). The staff view runs
+  on the server with the secret key behind one shared password until day 17.
+- Cancel code: 6 characters, shown on the confirmation page. A guest can cancel
+  until the booking starts and enters the code on the booking page.
+
+## Decisions
+- Photos: none yet. Each court shows a plain grey block with its name; real photos come later in public/courts/.
+- SQL: one file, supabase/schema.sql, that I paste into the Supabase SQL Editor. No migrations tool, no CLI.
+- 14 days: today plus the next 13 days, counted in Milan time.
+- Language: the whole site is in English.
 
 ## Out of scope
 Payments (day 19), login (day 17), tournaments, coaching, an app store app.
