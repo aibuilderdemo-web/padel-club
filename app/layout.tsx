@@ -3,7 +3,7 @@ import { Barlow_Condensed, Inter } from "next/font/google";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { currentUser, logOut } from "@/lib/auth";
+import { currentUser, isStaff, logOut } from "@/lib/auth";
 import "./globals.css";
 
 async function logOutAction() {
@@ -12,8 +12,10 @@ async function logOutAction() {
   redirect("/");
 }
 
-// Log in, or My bookings and Log out. Reads the login cookie, so it sits
-// in its own Suspense and the rest of the page doesn't wait for it.
+// Log in, or My bookings and Log out, plus Staff for staff and admins.
+// Reads the login cookie, so it sits in its own Suspense and the rest of
+// the page doesn't wait for it. Hiding the link is only for tidiness: what
+// staff may read is decided by RLS in the database.
 async function AccountLinks() {
   const user = await currentUser().catch(() => null);
   if (!user) {
@@ -24,7 +26,12 @@ async function AccountLinks() {
     );
   }
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center justify-end gap-x-4">
+      {isStaff(user) && (
+        <Link href="/staff" className="flex min-h-11 items-center whitespace-nowrap text-club underline">
+          Staff
+        </Link>
+      )}
       <Link href="/my-bookings" className="flex min-h-11 items-center whitespace-nowrap text-club underline">
         My bookings
       </Link>

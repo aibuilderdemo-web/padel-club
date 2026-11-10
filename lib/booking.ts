@@ -136,6 +136,54 @@ export async function cancelBooking(id: string): Promise<void> {
   if (data.length === 0) throw new Error("This booking has already started or isn't yours.");
 }
 
+export type StaffBooking = {
+  id: string;
+  courtName: string;
+  startsAt: string;
+  guestName: string;
+  phone: string;
+};
+
+// Today's bookings (Milan time), by court then time, with name and phone.
+// Runs as the logged-in user: RLS returns every booking only to staff and
+// admins, so anyone else would get just their own.
+export async function todaysBookings(): Promise<{ date: string; day: string; bookings: StaffBooking[] }> {
+  await connection();
+  const now = new Date();
+  const today = slotTime(now.toISOString()).date;
+  const supabase = await supabaseServer();
+  // A window wide enough to hold all of today in Milan; trimmed to today below.
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id, starts_at, guest_name, phone, court_id, courts(name)")
+    .gte("starts_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString())
+    .lt("starts_at", new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString())
+    .order("court_id")
+    .order("starts_at");
+  if (error) throw new Error(error.message);
+
+  const rows = data as unknown as {
+    id: string;
+    starts_at: string;
+    guest_name: string;
+    phone: string;
+    courts: { name: string };
+  }[];
+  return {
+    date: today,
+    day: slotTime(now.toISOString()).day,
+    bookings: rows
+      .filter((row) => slotTime(row.starts_at).date === today)
+      .map((row) => ({
+        id: row.id,
+        courtName: row.courts.name,
+        startsAt: row.starts_at,
+        guestName: row.guest_name,
+        phone: row.phone,
+      })),
+  };
+}
+
 // How a start time reads in Milan: its date (YYYY-MM-DD), day, start and end.
 export function slotTime(startsAt: string) {
   const start = new Date(startsAt);

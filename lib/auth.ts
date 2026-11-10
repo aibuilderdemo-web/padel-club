@@ -57,6 +57,11 @@ export const currentUser = cache(async (): Promise<User | null> => {
   };
 });
 
+// Staff and admins see the staff page (PERMISSIONS.md).
+export function isStaff(user: User | null): boolean {
+  return user?.profile?.role === "staff" || user?.profile?.role === "admin";
+}
+
 // Makes an account. The database makes the profile from fullName and phone.
 // Returns true when Supabase wants the email confirmed first.
 export async function signUp(input: {

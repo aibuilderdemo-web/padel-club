@@ -43,7 +43,8 @@ Checks:
 - Same with 18:30 or 17:00 on Court 1: refused. 18:00 on Court 2: works.
 - An insert in the SQL Editor that overlaps is refused too.
 
-## [ ] 4. Staff page with today's bookings (open for now)
+## [x] 4. Staff page with today's bookings (staff and admin only)
+Done (briefs/staff-fix.txt, after slice 6): /staff redirects anyone who isn't staff or admin to the home page on the server, and reads as the logged-in user so RLS "Staff read every booking" applies, with no secret key and no shared password; left: your check against Supabase.
 /staff lists today's bookings (Milan time) by court and time, with name and
 phone. Read on the server with the secret key. No password yet.
 Checks:
