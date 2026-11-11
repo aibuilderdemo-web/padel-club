@@ -39,7 +39,14 @@ export function SlotList() {
     setError(null);
     fetch(`/api/slots?date=${day}`)
       .then((r) => r.json())
-      .then((j) => (j.error ? setError(j.error) : setSlots(j.slots)))
+      .then((j) => {
+        if (j.error) return setError(j.error);
+        // formatSlot throws on an unreadable start, which would break the whole list.
+        // Show the problem on the page instead.
+        const bad = (j.slots as ApiSlot[]).find((s) => Number.isNaN(Date.parse(s.start)));
+        if (bad) return setError(`The server sent a slot with an unreadable start time: ${JSON.stringify(bad.start)}`);
+        setSlots(j.slots);
+      })
       .catch((e) => setError(String(e)));
   }
 
