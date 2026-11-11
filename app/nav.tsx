@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { logOut } from "@/app/auth/actions";
 import { createAuthClient } from "@/lib/supabase/auth";
-import { PostHogUser } from "./posthog-user";
 import { SentryUser } from "./sentry-user";
 
 export async function Nav() {
@@ -19,7 +18,6 @@ export async function Nav() {
   return (
     <nav className="flex items-center gap-4 border-b px-6 py-2 text-sm">
       <SentryUser id={data.user?.id ?? null} />
-      <PostHogUser id={data.user?.id ?? null} />
       <Link href="/" className="font-medium">Padel Club Navigli</Link>
       <span className="flex-1" />
       {data.user ? (
